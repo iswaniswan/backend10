@@ -1,0 +1,21 @@
+# backend directory
+rest/__pycache__/
+rest/controllers/__pycache__/
+rest/helpers/__pycache__/
+rest/models/__pycache__/
+rest/routes/__pycache__/
+rest/sockets/
+rest/exceptions/
+__pycache__/
+\.idea/
+venv/
+__init*
+clear_login*
+cron*
+generateDB*
+import_*
+track-go-beton*
+wsgi*
+rest/configuration.py
+docs/
+uploads/
