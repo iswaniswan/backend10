@@ -29,6 +29,193 @@ class SalesStatisticController(object):
         self.so_model = SalesOrderModel()
         self.ro_model = RequestOrderModel()
 
+    # custom code
+
+    def get_statistic_visit_sales(self, branch_privilege: list, division_privilege: list, start_date: str, end_date: str):
+        # collector = 4, sales = 2
+        sales_div_id = [2]
+        division_privilege = sales_div_id
+
+        today = datetime.today()
+        today = today.strftime("%Y-%m-%d")
+
+        # TODO: Get statitistic Visited plan
+        select = "br.id, br.name"
+        select_count = ", SUM(JSON_LENGTH(vp.destination)) as total"
+        join = """as vp LEFT JOIN `users` as u ON vp.user_id = u.id LEFT JOIN `branches` as br ON u.branch_id = br.id"""
+        where_vp = """WHERE (vp.is_deleted = 0 AND vp.is_approval = 1) 
+        AND (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
+            ", ".join(str(x) for x in branch_privilege), ", ".join(str(x) for x in division_privilege)
+        )
+        if start_date and end_date:
+            where_vp += """AND (vp.date >= '{0} 00:00:00' AND vp.date <= '{1} 23:59:59') """.format(start_date,
+                                                                                                    end_date)
+        else:
+            where_vp += """AND (vp.date LIKE '{}%')""".format(today)
+        group = """GROUP BY u.branch_id"""
+        count_plan = self.visit_plan_model.get_count_all_visit_plan_statistic(
+            self.cursor, select=select, select_count=select_count, join=join, where=where_vp, group=group
+        )
+        # TODO: Get Statistitic Actual Plan
+        select = "br.id, br.name"
+        select_from = """( SELECT act.* FROM (SELECT id, user_id, visit_plan_id, 
+        REPLACE(nfc_code, " ", "") as nfc_code, tap_nfc_date, tap_nfc_type FROM sales_activity) as act 
+        WHERE act.tap_nfc_type = 'IN' GROUP BY act.visit_plan_id, act.nfc_code, act.tap_nfc_type )"""
+        select_count = ", COUNT(sa.id) as total"
+        order = ''
+        join = """as sa LEFT JOIN `users` as u ON sa.user_id = u.id LEFT JOIN `branches` as br ON u.branch_id = br.id"""
+        where_sa = """WHERE (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
+            ", ".join(str(x) for x in branch_privilege), ", ".join(str(x) for x in division_privilege)
+        )
+        if start_date and end_date:
+            where_sa += """AND (sa.tap_nfc_date >= '{0} 00:00:00' AND sa.tap_nfc_date <= '{1} 23:59:59') """.format(
+                start_date, end_date)
+        else:
+            where_sa += """AND (sa.tap_nfc_date LIKE '{}%')""".format(today)
+        group = """GROUP BY u.branch_id"""
+        count_actual = self.sales_activity_model.get_count_all_activity_statistic(
+            self.cursor, select=select, select_count=select_count, select_from=select_from, join=join,
+            where=where_sa, order=order, group=group
+        )
+        where_br = """WHERE (is_deleted = 0 AND is_approval = 1) AND id IN ({0}) """.format(
+            ", ".join(str(x) for x in branch_privilege)
+        )
+        result = self.branches_model.get_all_branches(self.cursor, where=where_br, start=0, limit=1000)
+
+        data_statistic_visit = dict()
+        data_branch = []
+
+        total_plan = 0
+        total_visited = 0
+        total_cancel = 0
+        for res in result:
+            plan = 0
+            actual = 0
+            if count_plan:
+                for rec in count_plan:
+                    if rec['id'] == res['id']:
+                        plan += int(rec['total'])
+                        if count_actual:
+                            for rec_actual in count_actual:
+                                if rec_actual['id'] == rec['id']:
+                                    actual += int(rec_actual['total'])
+            cancel = plan - actual
+            data_plan_actual = {
+                res['name']: {
+                    "plan": plan,
+                    "actual": actual,
+                    "cancel": cancel
+                }
+            }
+            data_branch.append(data_plan_actual)
+            total_plan += plan
+            total_visited += actual
+            total_cancel += cancel
+
+        data_total = {
+            'plan': total_plan,
+            'visited': total_visited,
+            'cancel': total_cancel
+        }
+        data_statistic_visit['total_visit_actual'] = data_total
+        data_statistic_visit['data_visit_actual'] = data_branch
+
+        return data_statistic_visit
+
+    def get_statistic_visit_collector(self, branch_privilege: list, division_privilege: list, start_date: str, end_date: str):
+        # collector = 4, sales = 2
+        sales_div_id = [4]
+        division_privilege = sales_div_id
+
+        today = datetime.today()
+        today = today.strftime("%Y-%m-%d")
+
+        # TODO: Get statitistic Visited plan
+        select = "br.id, br.name"
+        select_count = ", SUM(JSON_LENGTH(vp.destination)) as total"
+        join = """as vp LEFT JOIN `users` as u ON vp.user_id = u.id LEFT JOIN `branches` as br ON u.branch_id = br.id"""
+        where_vp = """WHERE (vp.is_deleted = 0 AND vp.is_approval = 1) 
+        AND (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
+            ", ".join(str(x) for x in branch_privilege), ", ".join(str(x) for x in division_privilege)
+        )
+        if start_date and end_date:
+            where_vp += """AND (vp.date >= '{0} 00:00:00' AND vp.date <= '{1} 23:59:59') """.format(start_date,
+                                                                                                    end_date)
+        else:
+            where_vp += """AND (vp.date LIKE '{}%')""".format(today)
+        group = """GROUP BY u.branch_id"""
+        count_plan = self.visit_plan_model.get_count_all_visit_plan_statistic(
+            self.cursor, select=select, select_count=select_count, join=join, where=where_vp, group=group
+        )
+        # TODO: Get Statistitic Actual Plan
+        select = "br.id, br.name"
+        select_from = """( SELECT act.* FROM (SELECT id, user_id, visit_plan_id, 
+        REPLACE(nfc_code, " ", "") as nfc_code, tap_nfc_date, tap_nfc_type FROM sales_activity) as act 
+        WHERE act.tap_nfc_type = 'IN' GROUP BY act.visit_plan_id, act.nfc_code, act.tap_nfc_type )"""
+        select_count = ", COUNT(sa.id) as total"
+        order = ''
+        join = """as sa LEFT JOIN `users` as u ON sa.user_id = u.id LEFT JOIN `branches` as br ON u.branch_id = br.id"""
+        where_sa = """WHERE (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
+            ", ".join(str(x) for x in branch_privilege), ", ".join(str(x) for x in division_privilege)
+        )
+        if start_date and end_date:
+            where_sa += """AND (sa.tap_nfc_date >= '{0} 00:00:00' AND sa.tap_nfc_date <= '{1} 23:59:59') """.format(
+                start_date, end_date)
+        else:
+            where_sa += """AND (sa.tap_nfc_date LIKE '{}%')""".format(today)
+        group = """GROUP BY u.branch_id"""
+        count_actual = self.sales_activity_model.get_count_all_activity_statistic(
+            self.cursor, select=select, select_count=select_count, select_from=select_from, join=join,
+            where=where_sa, order=order, group=group
+        )
+        where_br = """WHERE (is_deleted = 0 AND is_approval = 1) AND id IN ({0}) """.format(
+            ", ".join(str(x) for x in branch_privilege)
+        )
+        result = self.branches_model.get_all_branches(self.cursor, where=where_br, start=0, limit=1000)
+
+        data_statistic_visit = dict()
+        data_branch = []
+
+        total_plan = 0
+        total_visited = 0
+        total_cancel = 0
+        for res in result:
+            plan = 0
+            actual = 0
+            if count_plan:
+                for rec in count_plan:
+                    if rec['id'] == res['id']:
+                        plan += int(rec['total'])
+                        if count_actual:
+                            for rec_actual in count_actual:
+                                if rec_actual['id'] == rec['id']:
+                                    actual += int(rec_actual['total'])
+            cancel = plan - actual
+            data_plan_actual = {
+                res['name']: {
+                    "plan": plan,
+                    "actual": actual,
+                    "cancel": cancel
+                }
+            }
+            data_branch.append(data_plan_actual)
+            total_plan += plan
+            total_visited += actual
+            total_cancel += cancel
+
+        data_total = {
+            'plan': total_plan,
+            'visited': total_visited,
+            'cancel': total_cancel
+        }
+        data_statistic_visit['total_visit_actual'] = data_total
+        data_statistic_visit['data_visit_actual'] = data_branch
+
+        return data_statistic_visit
+
+    # custom code end
+
+
     def get_statistic_visit(self, branch_privilege: list, division_privilege: list, start_date: str, end_date: str):
         """
 

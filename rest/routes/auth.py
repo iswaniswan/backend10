@@ -157,6 +157,7 @@ def auth():
             }
         }
         res = user_controller.create_login_status(username, tipe_login)
+        print("response login : ", response)
         return jsonify(response)
     else:
         raise BadRequest("Wrong username or password", 500, 1, data=[])

@@ -7,7 +7,7 @@ from flask_jwt import jwt_required, current_identity
 
 from rest.exceptions import BadRequest
 from rest.helpers import Validator
-from rest.controllers import SalesActivityController, LogisticActivityController
+from rest.controllers import SalesActivityController, LogisticActivityController, CisangkanController
 
 __author__ = 'junior'
 
@@ -264,11 +264,15 @@ def export_all_activity_report(job):
     if request.args.get('page_filter'):
         data_filter = request.args.get('page_filter')
         data_filter = json.loads(data_filter)
+    # 
+    # print("job is : ", job)
+    # 
     if job == 'sales':
         result = sa_controller.get_all_export_activity_data_by_visit_plan(
             page=page, limit=limit, search=search, column=column, direction=direction,
             branch_privilege=branch_privilege, division_privilege=division_privilege, data_filter=data_filter
         )
+        
     elif job == 'logistic':
         result = la_controller.get_all_export_activity_data_by_delivery_plan(
             page=page, limit=limit, search=search, column=column, direction=direction,
@@ -279,6 +283,18 @@ def export_all_activity_report(job):
     if job == 'sales':
         if data_filter:
             data_filter = data_filter[0]
+
+            # if filter user lebih dari 1
+            gabs = []
+            if data_filter['user_id']:
+                cc = CisangkanController()
+                for user in data_filter['user_id']:
+                    username = cc.getUsernameById(user)
+                    gabs.append(username)
+
+                # print("gabs :", "_".join(gabs))
+            #
+              
             if data_filter['start_date'] and not data_filter['user_id']:
                 filename = 'Report_visit_plan_all_{0}_{1}.xlsx'.format(data_filter['start_date'],
                                                                        data_filter['end_date'])
@@ -286,10 +302,12 @@ def export_all_activity_report(job):
                 filename = 'Report_visit_plan_{0}_all.xlsx'.format(data_filter['user_id'])
             else:
                 filename = 'Report_visit_plan_{0}_{1}_{2}.xlsx'.format(
-                    data_filter['user_id'], data_filter['start_date'], data_filter['end_date']
+                    "_".join(gabs) , data_filter['start_date'], data_filter['end_date']
                 )
+                # print("filename1 : ", filename)
         else:
             filename = 'Report_visit_plan_all.xlsx'
+
     elif job == 'logistic':
         if data_filter:
             data_filter = data_filter[0]
@@ -307,7 +325,10 @@ def export_all_activity_report(job):
     else:
         filename = 'Report_plan_all.xlsx'
 
+    # print("filename2 : ", filename)
+
     response = make_response(send_file(result['file'], add_etags=False))
+    
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     response.headers['Content-Disposition'] = 'attachment; filename={}'.format(filename)
     response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
@@ -379,16 +400,17 @@ def export_pdf_all_activity_report(job):
         raise BadRequest('Only sales and logistic have activity', 422, 1, data=[])
     if job == 'sales':
         if data_filter:
-            data_filter = data_filter[0]
-            if data_filter['start_date'] and not data_filter['user_id']:
-                filename = 'Report_visit_plan_all_{0}_{1}.pdf'.format(data_filter['start_date'],
-                                                                      data_filter['end_date'])
-            elif data_filter['user_id'] and not data_filter['start_date']:
-                filename = 'Report_visit_plan_{0}_all.pdf'.format(data_filter['user_id'])
-            else:
-                filename = 'Report_visit_plan_{0}_{1}_{2}.pdf'.format(
-                    data_filter['user_id'], data_filter['start_date'], data_filter['end_date']
-                )
+            filename = 'Report_visit_plan_filter.pdf'
+            # data_filter = data_filter[0]
+            # if data_filter['start_date'] and not data_filter['user_id']:
+            #     filename = 'Report_visit_plan_all_{0}_{1}.pdf'.format(data_filter['start_date'],
+            #                                                           data_filter['end_date'])
+            # elif data_filter['user_id'] and not data_filter['start_date']:
+            #     filename = 'Report_visit_plan_{0}_all.pdf'.format(data_filter['user_id'])
+            # else:
+            #     filename = 'Report_visit_plan_{0}_{1}_{2}.pdf'.format(
+            #         data_filter['user_id'], data_filter['start_date'], data_filter['end_date']
+            #     )
         else:
             filename = 'Report_visit_plan_all.pdf'
     elif job == 'logistic':

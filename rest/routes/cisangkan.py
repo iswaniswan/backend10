@@ -13,7 +13,7 @@ from ast import literal_eval
 
 from rest.exceptions import BadRequest
 from rest.helpers import Validator, allowed_file
-from rest.controllers import CustomerController, ApprovalController, UserController, AreaController, VisitController, CisangkanController
+from rest.controllers import CustomerController, ApprovalController, UserController, AreaController, VisitController, CisangkanController, DeliveryController
 from rest.models import UserModel
 
 __author__ = 'iswan'
@@ -33,14 +33,56 @@ def invalid_message():
     }
     return jsonify(response)
 
-@bp.route('/cisangkan', methods=["GET"])
+@bp.route('/cisangkan/retrackImageFromDB', methods=["GET"])
 # @jwt_required
 def test_function():
-    response = {
-        'error': 0,
-        'message': 'this just a test',
-        'data': []
-    }
+    cc = CisangkanController()    
+    input = {}
+
+    today = datetime.today()
+    today = today.strftime("%Y-%m-%d %H:%M:%S")
+    
+    successed = 0
+    # set max range at 2000 or count yourself
+    for i in range(1, 3000, 1):
+        summaries = cc.get_visit_plan_summary_by_id(i)
+        if(summaries):
+            summary = summaries[0]
+            saveImgToPath = False
+
+            input["visit_images"] = json.loads(summary["visit_images"])
+            visit_image = input["visit_images"][0]
+            if(visit_image["image"].__len__() > 255):
+                saveImgToPath = True
+
+            if(saveImgToPath):
+                input["id"] = i
+                input["notes"] = summary["notes"]
+                input["username"] = summary["create_by"]
+                input["plan_id"] = summary["plan_id"]
+                input["customer_code"] = summary["customer_code"]
+
+                input["have_competitor"] = summary["have_competitor"]
+                competitors = []
+                if(input["have_competitor"] == 1):
+                    competitors = json.loads(summary["competitor_images"])
+                input["competitor_images"] = competitors
+                input["create_by"] = summary["create_by"]
+                input["category_visit"] = None
+                input["create_date"] = summary["create_date"]
+
+                cc.saveImageToPath2(input)
+                input.pop("username")
+                input.pop("create_date")
+
+                updates = cc.update_summary_plan(input)
+                if(updates):
+                    successed += 1
+
+    response = {}
+    response['error'] = 0
+    response['successed'] = successed
+
     return jsonify(response)
 
 
@@ -100,12 +142,9 @@ def mycustomer_summary():
         raise BadRequest("parameters incorrect", 500, 1, data=[])
 
     try:
-        # data = {
-        #     "username" : request_data["username_code"]
-        # }
         username = request_data["username_code"]
         result = cc.get_total_mycustomer(username)
-        # result = cc.get_total_mycustomer(username) // get all data by username from table
+        
         response = {
             'error': 0,
             'message': 'my customer',
@@ -129,7 +168,6 @@ def mycustomer_searched():
     try:
         username_id = request_data["username_id"]
         search = request_data["search"]
-        # result = cc.get_searched_mycustomer(username)
         result = cc.get_searched_mycustomer(username_id, search)
 
         response = {
@@ -154,7 +192,6 @@ def mycustomer_searched_only():
     try:
         username_id = request_data["username_id"]
         search = request_data["search"]
-        # result = cc.get_searched_mycustomer(username)
         result = cc.get_searched_mycustomer_only(username_id, search)
 
         response = {
@@ -374,9 +411,7 @@ def create_mycustomer():
 @bp.route('/cisangkan/visit/plan/summary/update', methods=['PUT'])
 # @jwt_required()
 def update_visit_plan_summary_cisangkan():
-
     cc = CisangkanController()
-
     response = {
         'error': 1,
         'message': '',
@@ -416,27 +451,36 @@ def update_visit_plan_summary_cisangkan():
 @bp.route('/cisangkan/visit/plan/summary/update_split_img', methods=['PUT'])
 # @jwt_required()
 def update_visit_plan_summary_cisangkan_split_img():
-
     cc = CisangkanController()
-
     response = {
         'error': 1,
         'message': '',
         'data': []
     }
-
     try:
         update_data = request.get_json(silent=True)
         if(not cc.request_credential(update_data)): return invalid_message()
     except:
         raise BadRequest("Params is missing or error format, check double quatation", 500, 1, data=[])
 
-    input = cc.sterilize_input(update_data)
-    
-    input_data = cc.saveImageToPath(input)
+    # print("update_data : ",update_data)
 
-    user_id = input["username"]
-    input.pop("username")
+    isLogistic = (1 if update_data.get('isLogistic') else None)
+    isCollector = (1 if update_data.get('isCollector') else None)
+    # print("isLogistic : ", isLogistic, " | isCollector : ", isCollector)
+    input = cc.sterilize_input(update_data)
+
+    input["isLogistic"] = isLogistic
+    input["isCollector"]= isCollector
+    
+    # print("input_convert 0 : ", input)
+
+    input_convert = cc.saveImageToPath(input)
+
+    user_id = input_convert["username"]
+    input_convert.pop("username")
+
+    input_data = cc.sterilize_input_div(input_convert)
 
     visit_controller = VisitController()
     summary_exist = visit_controller.check_visit_plan_summary(input_data["plan_id"], input_data["customer_code"])
@@ -459,12 +503,112 @@ def update_visit_plan_summary_cisangkan_split_img():
 
     return jsonify(response)
 
+
 @bp.route('/cisangkan/visit/plan/<int:plan_id>/summary/<string:customer_code>', methods=["GET"])
 @jwt_required()
 def get_visit_plan_summary_split_img(plan_id, customer_code):
-    
     visit_controller = VisitController()
     user_id = current_identity.id
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+    cc = CisangkanController()
+    visit_plan_summary = visit_controller.get_visit_plan_summary(plan_id=plan_id, customer_code=customer_code)
+    output = cc.loadImageFromPath(visit_plan_summary)
+    response['error'] = 0
+    response['data'] = output
+    return jsonify(response)
+
+
+@bp.route('/cisangkan/delivery/plan/<int:plan_id>/summary/<string:customer_code>', methods=['PUT'])
+@jwt_required()
+def update_delivery_plan_summary_split_image(plan_id, customer_code):
+    cc = CisangkanController()
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+    try:
+        update_data = request.get_json(silent=True)
+        if(not cc.request_credential(update_data)): return invalid_message()
+    except:
+        raise BadRequest("Params is missing or error format, check double quatation", 500, 1, data=[])
+
+    input = cc.sterilize_input(update_data)
+    input["isLogistic"] = 1
+    input_data = cc.saveImageToPath(input)
+    user_id = input["username"]
+    input.pop("username")
+    input.pop("isLogistic")
+
+    delivery_controller = DeliveryController()
+    summary_exist = delivery_controller.check_delivery_plan_summary(plan_id, customer_code)
+
+    if summary_exist:
+        summary_exist = summary_exist[0]
+        update_data['id'] = summary_exist['id']
+        update_data['plan_id'] = plan_id
+        update_data['customer_code'] = customer_code
+        delivery_plan = delivery_controller.update_summary_plan(update_data)
+    else:
+        update_data['plan_id'] = plan_id
+        update_data['customer_code'] = customer_code
+        delivery_plan = delivery_controller.create_summary_plan(update_data, user_id)
+
+    if delivery_plan:
+        response['error'] = 0
+        response['message'] = 'Success create or update delivery plan summary'
+    else:
+        raise BadRequest('Failed create or update delivery plan summary', 500, 1, data=[])
+
+    return jsonify(response)
+
+@bp.route('/cisangkan/delivery/plan/<int:plan_id>/summary/<string:customer_code>', methods=["GET"])
+@jwt_required()
+def get_delivery_plan_summary_split_img(plan_id, customer_code):
+    delivery_controller = DeliveryController()
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+
+    delivery_plan_summary = delivery_controller.get_delivery_plan_summary(plan_id=plan_id, customer_code=customer_code)
+    output = cc.loadImageFromPath(delivery_plan_summary)
+    response['error'] = 0
+    response['data'] = delivery_plan_summary
+
+    return jsonify(response)    
+
+@bp.route('/cisangkan/packingslip/import/external', methods=['POST'])
+def import_external_customer_file():
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+    cisangkan_controller = CisangkanController()
+    result = cisangkan_controller.import_packing_slip_file_csv()
+    if result:
+        response['error'] = 0
+        response['message'] = 'Success Import Customer from external file'
+    else:
+        response['error'] = 1
+        response['message'] = 'Failed Import Customer from external file'
+
+    return jsonify(response)    
+
+@bp.route('/testjointables', methods=['POST'])
+def test_custom_join_tables():
+    cc = CisangkanController()
+    try:
+        request_data = request.get_json(silent=True)
+        if(not cc.request_credential(request_data)): return invalid_message()
+    except:
+        raise BadRequest("parameters incorrect", 500, 1, data=[])
 
     response = {
         'error': 1,
@@ -472,12 +616,16 @@ def get_visit_plan_summary_split_img(plan_id, customer_code):
         'data': []
     }
 
-    cc = CisangkanController()
-
-    visit_plan_summary = visit_controller.get_visit_plan_summary(plan_id=plan_id, customer_code=customer_code)
-    output = cc.loadImageFromPath(visit_plan_summary)
-
-    response['error'] = 0
-    response['data'] = output
+    try:
+        user_id = request_data["user_id"]
+        result = cc.socketCheckCollector(user_id)
+        
+        response = {
+            'error': 0,
+            'message': 'check socket',
+            'data': result
+        }
+    except Exception as e:
+        raise BadRequest(e, 500, 1, data=[])
 
     return jsonify(response)

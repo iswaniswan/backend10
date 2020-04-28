@@ -139,12 +139,7 @@ class LogisticController(object):
 
     # TODO: controllers packing slip new format
     def import_packing_slip(self, file, user_id: 'int'):
-        """
-        import packing slip
-        :param file: file
-        :param user_id: int
-        :return:
-        """
+    
         headers = ['INVNO', 'DOCUMENTNUMBER', 'CUSTOMERKEY', 'ITEMKEY', 'ITEMDESCRIPTION', 'QTYSHIPPED', 'SHIPDATE',
                    'BRANCH CODE', 'DIVISION CODE']
         batch_data = []
@@ -479,19 +474,10 @@ class LogisticController(object):
                     ps['user_code'] = None
                     ps['user'] = {}
                 if ps['date'] is not None:
-                    ps['date'] = str(ps['date'])
-                    # today = datetime.today()
-                    # today = today.strftime("%Y-%m-%d")
-                    # if datetime.strptime(ps['date'], "%Y-%m-%d %H:%M:%S") < datetime.strptime(today, "%Y-%m-%d"):
-                    #     ps['status'] = 'Delivered'
-                    # else:
-                    #     try:
-                    #         delivery_status = self.delivery_model.get_delivery_by_slip_code(
-                    #             self.cursor, ps['code'])[0]['delivery_date']
-                    #         if delivery_status:
-                    #             ps['status'] = 'Delivered'
-                    #     except:
-                    #         ps['status'] = 'Ready'
+                    # 
+                    ps_date = datetime.strftime(ps['date'], "%Y-%m-%d")
+                    # 
+                    ps['date'] = str(ps_date)
                     try:
                         delivery_status = self.delivery_model.get_delivery_by_slip_code(
                             self.cursor, ps['code'])[0]['delivery_date']

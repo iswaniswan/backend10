@@ -154,7 +154,7 @@ class UserModel(Model):
         if user['employee_id'] is not None:
             employee = employee_model.get_employee_by_id(cursor, user['employee_id'])[0]
             user['name'] = employee['name']
-            user['job_function'] = employee['job_function']
+            user['job_function'] = ("Collector" if employee['is_collector_only'] == 1 else employee['job_function'])
             user['is_supervisor_sales'] = employee['is_supervisor_sales']
             user['is_supervisor_logistic'] = employee['is_supervisor_logistic']
             # user['name'] = "Test"

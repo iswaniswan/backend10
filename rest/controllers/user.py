@@ -559,7 +559,10 @@ class UserController(object):
             if user['employee_id'] is not None:
                 try:
                     user['employee'] = self.employee_model.get_employee_by_id(
-                        self.cursor, user['employee_id'], select="id, name, nip, email, phone, job_function")[0]
+                        self.cursor, user['employee_id'], select="id, name, nip, email, phone, job_function, is_collector_only")[0]
+                    if user['employee']:
+                        user['employee']['job_function'] = ("sales" if user['employee']['is_collectory_only'] == 1 else user['employee']['job_function'])
+                        del user['employee']['is_collector_only']
                 except:
                     user['employee'] = {}
             else:
@@ -715,8 +718,15 @@ class UserController(object):
                 if u['employee_id'] is not None:
                     try:
                         u['employee'] = self.employee_model.get_employee_by_id(
-                            self.cursor, u['employee_id'], select="id, name, nip, email, phone, job_function"
+                            self.cursor, u['employee_id'], select="id, name, nip, email, phone, job_function, is_collector_only"
                         )[0]
+                        # 
+                        if u['employee']:
+                            if u['employee']['is_collector_only'] == 1:
+                                u['employee']['job_function'] = 'Collector'
+
+                            del u['employee']['is_collector_only']                                
+                        # 
                     except:
                         u['employee'] = {}
                 else:

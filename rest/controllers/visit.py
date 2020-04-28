@@ -790,7 +790,8 @@ class VisitController(object):
                 if vp['edit_data'] is not None:
                     vp['edit_data'] = json.loads(vp['edit_data'])
                 if vp['date'] is not None:
-                    vp['date'] = str(vp['date'])
+                    my_date = datetime.strftime(vp['date'], "%Y-%m-%d")
+                    vp['date'] = str(my_date)
                 if vp['create_date'] is not None:
                     vp['create_date'] = str(vp['create_date'])
                 if vp['update_date'] is not None:

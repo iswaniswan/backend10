@@ -12,7 +12,7 @@ from ast import literal_eval
 
 from rest.exceptions import BadRequest
 from rest.helpers import Validator, allowed_file
-from rest.controllers import CustomerController, ApprovalController, UserController, AreaController
+from rest.controllers import CustomerController, ApprovalController, UserController, AreaController, CisangkanController
 from rest.models import UserModel
 
 __author__ = 'junior'
@@ -45,7 +45,7 @@ def import_customer_file():
             "message": "Import Success"
         }
     """
-    allowed_extensions = {'xls', 'xlsx'}
+    allowed_extensions = {'xls', 'xlsx', 'csv'}
     user_id = current_identity.id
     sales_customer = current_identity.permissions['setting']['data']['setting-data']['data']['setting-data-customers']
     permissions = sales_customer['rule'][4]
@@ -69,30 +69,49 @@ def import_customer_file():
         'data': []
     }
     import_file = request.files['files']
-    if permissions == 1:
-        if import_file and allowed_file(import_file.filename, allowed_extensions):
-            filename = secure_filename(import_file.filename)
-            import_file.save(
-                os.path.join(current_app.config['UPLOAD_FOLDER'] + '/' + table_name, today + '_' + filename))
-            result = customer_controller.import_customer_file(filename=today + '_' + filename, filename_origin=filename,
-                                                              table=table_name, user_id=user_id)
 
+    # custom code
+    if(import_file.filename.lower().endswith('.csv')):
+        cisangkan_controller = CisangkanController()
+        filename = secure_filename(import_file.filename)
+        result = cisangkan_controller.import_customer_file_csv(
+                    filename=import_file, filename_origin=import_file.filename, table=table_name, user_id=user_id
+                )
+        if(result['success']):
             response['error'] = 0
-            response['message'] = 'Import Success'
+            response['message'] = 'import customer successful'
         else:
-            raise BadRequest('Extension not allowed', 422, 1, data=[])
-    elif permissions == 2 or permissions == 3:
-        if import_file and allowed_file(import_file.filename, allowed_extensions):
-            # filename = secure_filename(import_file.filename)
-            # import_file.save(os.path.join(current_app.config['UPLOAD_FOLDER']+'/'+table_name, today+'_'+filename))
-            result = customer_controller.import_customer(import_file, user_id)
+            response['error'] = 1
+            response['message'] = 'found duplicate'
+            e = dict()
+            e['duplicates'] = result['duplicates']
+            e['data'] = result['data']
+            raise BadRequest('found duplicate', 400, 1, data=e['data'])
+    else: 
+        if permissions == 1:
+            if import_file and allowed_file(import_file.filename, allowed_extensions):
+                filename = secure_filename(import_file.filename)
+                import_file.save(
+                    os.path.join(current_app.config['UPLOAD_FOLDER'] + '/' + table_name, today + '_' + filename))
+                result = customer_controller.import_customer_file(filename=today + '_' + filename, filename_origin=filename,
+                                                                table=table_name, user_id=user_id)
 
-            response['error'] = 0
-            response['message'] = 'Import Success'
+                response['error'] = 0
+                response['message'] = 'Import Success'
+            else:
+                raise BadRequest('Extension not allowed', 422, 1, data=[])
+        elif permissions == 2 or permissions == 3:
+            if import_file and allowed_file(import_file.filename, allowed_extensions):
+                # filename = secure_filename(import_file.filename)
+                # import_file.save(os.path.join(current_app.config['UPLOAD_FOLDER']+'/'+table_name, today+'_'+filename))
+                result = customer_controller.import_customer(import_file, user_id)
+
+                response['error'] = 0
+                response['message'] = 'Import Success'
+            else:
+                raise BadRequest('Extension not allowed', 422, 1, data=[])
         else:
-            raise BadRequest('Extension not allowed', 422, 1, data=[])
-    else:
-        raise BadRequest("You don't have permission", 403, 1, data=[])
+            raise BadRequest("You don't have permission", 403, 1, data=[])
 
     return jsonify(response)
 
@@ -1231,5 +1250,31 @@ def delete_customer(customer_id):
             raise BadRequest(e, 500, 1, data=[])
     else:
         raise BadRequest("Access Not Authorized", 401, 1, data=[])
+
+    return jsonify(response)
+
+
+@bp.route('/customer/import/update', methods=['POST'])
+@jwt_required()
+def import_customer_file_update():
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+
+    try:
+        request_data = request.get_json(silent=True)
+    except:
+        raise BadRequest("Params is missing or error format, check double quatation", 422, 1, data=[])
+
+    print("request_data : " , request_data)
+
+    cc = CisangkanController()
+    result = cc.update_customer_batch(request_data)
+
+    if result:
+        response['error'] = 0
+        response['message'] = 'Success update packing slip'
 
     return jsonify(response)

@@ -14,28 +14,10 @@ __author__ = 'junior'
 
 bp = Blueprint(__name__, "statistic")
 
-
 @bp.route('/statistic/sales/visit', methods=['GET'])
 @jwt_required()
 def statistic_sales_visit():
-    """
-    Sales performance statistic visit
-    :example:
-        curl -i -x POST
-        -H "Authorization:JWT <token>"
-        -H "Content-Type:multipart/form-data"
-        -F "create_data:<json>"
-        "http://localhost:7091/statistic/sales"
-    :endpoint:
-        POST /statistic/sales
-    :return:
-        HTTP/1.1 200 OK
-        Content-Type: text/javascript
-        {
-            "error": 0,
-            "message": "log activity has been created"
-        }
-    """
+    
     user_id = current_identity.id
     branch_privilege = current_identity.branch_privilege
     division_privilege = current_identity.division_privilege
@@ -62,12 +44,87 @@ def statistic_sales_visit():
     if request.args.get('end_date'):
         end_date = request.args.get('end_date')
 
-    result = ss_controller.get_statistic_visit(branch_privilege, division_privilege, start_date, end_date)
+    result = ss_controller.get_statistic_visit_sales(branch_privilege, division_privilege, start_date, end_date)
 
     response['error'] = 0
     response['data'] = result
 
     return jsonify(response)
+
+@bp.route('/statistic/collector/visit', methods=['GET'])
+@jwt_required()
+def statistic_collecotr_visit():
+    
+    user_id = current_identity.id
+    branch_privilege = current_identity.branch_privilege
+    division_privilege = current_identity.division_privilege
+
+    today = datetime.today()
+    today = today.strftime("%Y-%m-%d %H:%M:%S")
+
+    ss_controller = SalesStatisticController()
+
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+    start_date = None
+    end_date = None
+    user_id = None
+    if request.args.get('branch_id'):
+        branch_privilege = [request.args.get('branch_id')]
+    if request.args.get('user_id'):
+        user_id = [request.args.get('user_id')]
+    if request.args.get('start_date'):
+        start_date = request.args.get('start_date')
+    if request.args.get('end_date'):
+        end_date = request.args.get('end_date')
+
+    result = ss_controller.get_statistic_visit_collector(branch_privilege, division_privilege, start_date, end_date)
+
+    response['error'] = 0
+    response['data'] = result
+
+    return jsonify(response)    
+
+# backup source code
+# @bp.route('/statistic/sales/visit', methods=['GET'])
+# @jwt_required()
+# def statistic_sales_visit():
+    
+#     user_id = current_identity.id
+#     branch_privilege = current_identity.branch_privilege
+#     division_privilege = current_identity.division_privilege
+
+#     today = datetime.today()
+#     today = today.strftime("%Y-%m-%d %H:%M:%S")
+
+#     ss_controller = SalesStatisticController()
+
+#     response = {
+#         'error': 1,
+#         'message': '',
+#         'data': []
+#     }
+#     start_date = None
+#     end_date = None
+#     user_id = None
+#     if request.args.get('branch_id'):
+#         branch_privilege = [request.args.get('branch_id')]
+#     if request.args.get('user_id'):
+#         user_id = [request.args.get('user_id')]
+#     if request.args.get('start_date'):
+#         start_date = request.args.get('start_date')
+#     if request.args.get('end_date'):
+#         end_date = request.args.get('end_date')
+
+#     result = ss_controller.get_statistic_visit(branch_privilege, division_privilege, start_date, end_date)
+
+#     response['error'] = 0
+#     response['data'] = result
+
+#     return jsonify(response)
 
 
 @bp.route('/statistic/sales/activities', methods=['GET'])
@@ -176,24 +233,7 @@ def statistic_sales_permission_alert():
 @bp.route('/statistic/sales/invoice', methods=['GET'])
 @jwt_required()
 def statistic_sales_invoice():
-    """
-    Sales performance statistic invoice vs payment
-    :example:
-        curl -i -x POST
-        -H "Authorization:JWT <token>"
-        -H "Content-Type:multipart/form-data"
-        -F "create_data:<json>"
-        "http://localhost:7091/statistic/sales"
-    :endpoint:
-        POST /statistic/sales
-    :return:
-        HTTP/1.1 200 OK
-        Content-Type: text/javascript
-        {
-            "error": 0,
-            "message": "log activity has been created"
-        }
-    """
+
     user_id = current_identity.id
     branch_privilege = current_identity.branch_privilege
     division_privilege = current_identity.division_privilege
@@ -226,24 +266,7 @@ def statistic_sales_invoice():
 @bp.route('/statistic/sales/orders', methods=['GET'])
 @jwt_required()
 def statistic_sales_orders():
-    """
-    Sales performance statistic sales order and request order
-    :example:
-        curl -i -x POST
-        -H "Authorization:JWT <token>"
-        -H "Content-Type:multipart/form-data"
-        -F "create_data:<json>"
-        "http://localhost:7091/statistic/sales"
-    :endpoint:
-        POST /statistic/sales
-    :return:
-        HTTP/1.1 200 OK
-        Content-Type: text/javascript
-        {
-            "error": 0,
-            "message": "log activity has been created"
-        }
-    """
+
     user_id = current_identity.id
     branch_privilege = current_identity.branch_privilege
     division_privilege = current_identity.division_privilege

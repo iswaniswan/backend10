@@ -6,7 +6,6 @@ from .model import Model
 
 __author__ = 'iswan'
 
-# made as requested for custom purpose
 # dibuat sesuai keperluan
 
 class CisangkanCustomerModel(Model):
@@ -40,7 +39,14 @@ class CisangkanCustomerModel(Model):
             }
             return self.insert_ignore(cursor, value)
         except Exception as e:
-            raise e        
+            raise e    
+
+
+    def insert_update_batch(self, cursor, data, key):
+        try:
+            return self.insert_update(cursor, data, key)
+        except Exception as e:
+            raise e      
 
 
     def m_get_last_customer_inserted_today(self, cursor, user_id):
@@ -82,6 +88,15 @@ class CisangkanUserModel(Model):
         except Exception as e:
             raise e   
 
+    # custom join
+    def m_get_custom_user_properties(self, cursor, select, join, where):
+        try:
+            return self.get(cursor, fields=select, join=join, where=where)
+            # return self.get(cursor, fields=select, join=join, where="WHERE is_deleted = 0 AND id = '{0}'".format(user_id))
+        except Exception as e:
+            raise e
+
+
 class CisangkanDeliveryPlanModel(Model):
     def __init__(self):
         Model.__init__(self)
@@ -107,15 +122,21 @@ class CisangkanVisitPlanSummaryModel(Model):
         Model.__init__(self)
         self.table = 'visit_plan_summary'
 
+    def get_visit_plan_summary_by_id(self, cursor, _id, select='*'):
+        try:
+            return self.get(cursor, fields=select, where="WHERE id = '{}'".format(_id))
+        except Exception as e:
+            raise e
+
     def insert_into_db(
             self, cursor, plan_id, customer_code, notes, visit_images, have_competitor, competitor_images,
-            create_date, update_date, create_by, category_visit
+            create_date, update_date, create_by, category_visit, nc
     ):
         try:
             value = {
                 "plan_id": plan_id, "customer_code": customer_code, "notes": notes, "visit_images": visit_images,
                 "have_competitor": have_competitor, "competitor_images": competitor_images,
-                "create_date": create_date, "update_date": update_date, "create_by": create_by, "category_visit":category_visit
+                "create_date": create_date, "update_date": update_date, "create_by": create_by, "category_visit":category_visit, "nc":nc
             }
             return self.insert_ignore(cursor, value)
         except Exception as e:
@@ -129,3 +150,50 @@ class CisangkanVisitPlanSummaryModel(Model):
             raise e
 
 
+class CisangkanPackingSlipModel(Model):
+    def __init__(self):
+        Model.__init__(self)
+        self.table = 'packing_slip'
+        self.table_import = 'file_upload'
+
+    def get_packing_slip_by_id(self, cursor, _id, select='*'):
+        try:
+            return self.get(cursor, fields=select, where="WHERE code = '{}'".format(_id))
+        except Exception as e:
+            raise e
+
+    def import_insert(self, cursor, data, key):
+        try:
+            return self.insert_update(cursor, data, key)
+        except Exception as e:
+            raise e        
+
+    def import_insert_file_csv(self, cursor, file_name, file_name_origin, table, create_date, update_date, create_by):
+        try:
+            value = {"file_name": file_name, "file_name_origin": file_name_origin, "table_name": "packing_slip",
+                     "create_date": create_date, "update_date": update_date, "create_by": create_by}
+            
+            self.change_charset_to_utf8mb4(cursor)
+            try:
+                sql = self.qb.insert(value, self.table_import, True)
+                # print("import csv file " ,sql)
+                return cursor.execute(sql)
+            except Exception:
+                raise
+        except Exception as e:
+            raise e
+
+    def insert_into_tbl_file_upload(
+        self, cursor, file_path, file_name_origin, status, create_date, create_by
+    ):
+        value = {
+            "table_name": self.table, "file_name": file_path, "file_name_origin": file_name_origin, "status": status,
+            "create_date": create_date, "create_by": create_by}
+            
+        # self.change_charset_to_utf8mb4(cursor)
+        try:
+            sql = self.qb.insert(value, self.table_import, False)
+            print("import csv file " ,sql)
+            return cursor.execute(sql)
+        except Exception:
+            raise

@@ -60,7 +60,7 @@ class QueryBuilder:
                 values.append('"{0}"'.format(pymysql.escape_string(data[key])))
         value = ", ".join(values)
         # :debug for value of query insert:
-        # print(value)
+        # print("query builder : " ,value)
         return value
 
     def value_insert_batch(self, batch_data, keys):

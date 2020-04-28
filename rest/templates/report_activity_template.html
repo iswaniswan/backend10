@@ -6,6 +6,7 @@
     <meta name="pdfkit-orientation" content="landscape"/>
     <title>Title</title>
     <style>
+
         .table1 {
             font-family: sans-serif;
             color: #444;
@@ -30,6 +31,10 @@
             padding: 0px;
             margin: -1px;
             text-align: center;
+        }
+        
+        td.content {
+            padding: 0px; margin: 0px; text-align: left;
         }
 
         .table1 tr:hover {
@@ -99,7 +104,8 @@
                 <th>ALERT</th>
                 <th>PERMISSION</th>
                 <th>CANCEL</th>
-                <th>INVOICE</th>
+                <!-- <th>INVOICE</th> -->
+                <th colspan="4"></th>
             </tr>
         {% else %}
             <tr>
@@ -135,7 +141,8 @@
                     <td>{{ rec.alert }}</td>
                     <td>{{ rec.permission }}</td>
                     <td>{{ rec.cancel }}</td>
-                    <td>{{ rec.invoice }}</td>
+                    <!-- <td>{{ rec.invoice }}</td> -->
+                    <td colspan="4"></td>
                 {% else %}
                     <td>{{ rec.tanggal }}</td>
                     <td>{{ rec.driver }}</td>
@@ -148,7 +155,8 @@
                     <td>{{ rec.alert }}</td>
                     <td>{{ rec.permission }}</td>
                     <td>{{ rec.cancel }}</td>
-                    <td>{{ rec.invoice }}</td>
+                    <!-- <td>{{ rec.invoice }}</td> -->
+                    <td colspan="4"></td>
                 {% endif %}
             </tr>
             <tr class="branch">
@@ -181,16 +189,23 @@
             {% if rec.customer %}
                 {% if category == "sales" %}
                     <tr>
-                        <td class="customer" colspan="14">
+                        <td class="customer" colspan="17">
                             <table class="table2">
                                 <thead>
                                 <tr>
-                                    <th width="10%">Customer Code</th>
-                                    <th width="10%">Customer Name</th>
-                                    <th width="50%">Address</th>
-                                    <th width="10%">Check In</th>
-                                    <th width="10%">Check Out</th>
-                                    <th width="10%">Summary</th>
+                                    <th width="7%">Customer Code</th>
+                                    <th width="7%">Customer Name</th>
+                                    <th width="14%">Address</th>
+                                    <th width="7%">Phone</th>
+                                    <th width="7%">Contacts Name</th>
+                                    <th width="7%">Phone</th>
+                                    <th width="7%">Mobile</th>
+                                    <th width="7%">Check In</th>
+                                    <th width="7%">Check Out</th>
+                                    <th width="15%">Summary</th>
+                                    <th width="7%">Customer Category</th>
+                                    <th width="7%">Visit Category</th>
+                                    <th width="1%">NC</th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -198,10 +213,17 @@
                                     <tr>
                                         <td>{{ cust.code }}</td>
                                         <td>{{ cust.name }}</td>
-                                        <td>{{ cust.address }}</td>
+                                        <td class="content">{{ cust.address }}</td>
+                                        <td>{{ cust.phone }}</td>
+                                        <td>{{ cust.contacts_name }}</td>
+                                        <td>{{ cust.contacts_phone }}</td>
+                                        <td>{{ cust.contacts_mobile }}</td>
                                         <td>{{ cust.in }}</td>
                                         <td>{{ cust.out }}</td>
-                                        <td>{{ cust.summary }}</td>
+                                        <td class="content">{{ cust.summary }}</td>
+                                        <td>{{ cust.category }}</td>
+                                        <td>{{ cust.category_visit }}</td>
+                                        <td>{{ cust.nc }}</td>
                                     </tr>
                                 {% endfor %}
                                 </tbody>

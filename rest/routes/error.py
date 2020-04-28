@@ -27,7 +27,7 @@ def page_not_found(e):
     """
     log.warning(e)
     response = {
-        "message": "Resource Not exists <> local cisangkan"
+        "message": "Resource update 20200314"
     }
     return jsonify(response), 404
 

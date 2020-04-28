@@ -10,7 +10,7 @@ from datetime import datetime
 
 from rest.exceptions import BadRequest
 from rest.helpers import Validator, allowed_file, USERS_NOTIF
-from rest.controllers import LogisticController, DeliveryController, UserController, InboxController
+from rest.controllers import LogisticController, DeliveryController, UserController, InboxController, CisangkanController
 from rest.helpers import fcm, socketio
 
 __author__ = 'junior'
@@ -248,25 +248,7 @@ def get_packing_slip(slip_id):
 @bp.route('/packing/slip/import', methods=['POST'])
 @jwt_required()
 def import_packing_slip_file():
-    """
-    Packing Slip import excel
-    :example:
-        curl -i -x POST
-        -H "Authorization:JWT <token>"
-        -H "Content-Type:multipart/form-data"
-        -F "area_data:<json>"
-        "http://localhost:7091/area"
-    :endpoint:
-        POST /packing/slip/import
-    :return:
-        HTTP/1.1 200 OK
-        Content-Type: text/javascript
-        {
-            "error": 0,
-            "message": "packing slip has been created"
-        }
-    """
-    allowed_extensions = {'xls', 'xlsx'}
+    allowed_extensions = {'xls', 'xlsx', 'csv'}
 
     user_id = current_identity.id
     setting = current_identity.permissions['logistic']['data']['logistic-activities']['data'][
@@ -293,31 +275,48 @@ def import_packing_slip_file():
     }
     import_file = request.files['files']
 
-    if permissions == 1:
-        if import_file and allowed_file(import_file.filename, allowed_extensions):
-            filename = secure_filename(import_file.filename)
-            import_file.save(
-                os.path.join(current_app.config['UPLOAD_FOLDER'] + '/' + table_name, today + '_' + filename))
-            result = logistic_controller.import_packing_slip_file(
-                filename=today + '_' + filename, filename_origin=filename, table=table_name, user_id=user_id
-            )
-
+    # custom code
+    if(import_file.filename.lower().endswith('.csv')):
+        cisangkan_controller = CisangkanController()
+        filename = secure_filename(import_file.filename)
+        result = cisangkan_controller.import_packing_slip_file_csv(
+                    filename=import_file, filename_origin=import_file.filename, table=table_name, user_id=user_id
+                )
+        if(result["success"] == 1):
             response['error'] = 0
-            response['message'] = 'Import Success'
+            response['message'] = 'Import CSV success'
         else:
-            raise BadRequest('Extension not allowed', 422, 1, data=[])
-    elif permissions == 2 or permissions == 3:
-        if import_file and allowed_file(import_file.filename, allowed_extensions):
-            # filename = secure_filename(import_file.filename)
-            # import_file.save(os.path.join(current_app.config['UPLOAD_FOLDER']+'/'+table_name, today+'_'+filename))
-            result = logistic_controller.import_packing_slip(import_file, user_id)
-
-            response['error'] = 0
-            response['message'] = 'Import Success'
-        else:
-            raise BadRequest('Extension not allowed', 422, 1, data=[])
+            response['error'] = 1
+            response['message'] = 'some duplicate entries'
+            raise BadRequest("found {0} duplicate entries".format(result["duplicates"]), 400, 1, data=result["data"])
+            
+    # custom code end
     else:
-        raise BadRequest("You don't have permission", 403, 1, data=[])
+        if permissions == 1:
+            if import_file and allowed_file(import_file.filename, allowed_extensions):
+                filename = secure_filename(import_file.filename)
+                import_file.save(
+                    os.path.join(current_app.config['UPLOAD_FOLDER'] + '/' + table_name, today + '_' + filename))
+                result = logistic_controller.import_packing_slip_file(
+                    filename=today + '_' + filename, filename_origin=filename, table=table_name, user_id=user_id
+                )
+
+                response['error'] = 0
+                response['message'] = 'Import Success'
+            else:
+                raise BadRequest('Extension not allowed', 422, 1, data=[])
+        elif permissions == 2 or permissions == 3:
+            if import_file and allowed_file(import_file.filename, allowed_extensions):
+                # filename = secure_filename(import_file.filename)
+                # import_file.save(os.path.join(current_app.config['UPLOAD_FOLDER']+'/'+table_name, today+'_'+filename))
+                result = logistic_controller.import_packing_slip(import_file, user_id)
+
+                response['error'] = 0
+                response['message'] = 'Import Success'
+            else:
+                raise BadRequest('Extension not allowed', 422, 1, data=[])
+        else:
+            raise BadRequest("You don't have permission", 403, 1, data=[])
 
     return jsonify(response)
 
@@ -655,5 +654,29 @@ def reject_deliver_packing_slip(packing_id):
             pass
     else:
         raise BadRequest('Failed reject packing slip', 500, 1, data=[])
+
+    return jsonify(response)
+
+
+@bp.route('/packing/slip/import/update', methods=['POST'])
+@jwt_required()
+def import_packing_slip_file_update():
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+
+    try:
+        request_data = request.get_json(silent=True)
+    except:
+        raise BadRequest("Params is missing or error format, check double quatation", 422, 1, data=[])
+
+    cc = CisangkanController()
+    result = cc.update_packing_slip_batch(request_data)
+
+    if result:
+        response['error'] = 0
+        response['message'] = 'Success update packing slip'
 
     return jsonify(response)

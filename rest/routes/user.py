@@ -269,8 +269,12 @@ def register():
         employee = EmployeeModel(
             session.query(EmployeeModel).filter(EmployeeModel.id == request_data['employee_id']).one()
         )
-        if employee.job_function != "driver" and employee.job_function != "crew":
+        if employee.job_function != "driver" or employee.job_function != "crew":
             rule['division_id']['required'] = True
+            # auto logistik
+            # 3 diambil dari id tabel divisi
+            request_data['division_id'] = 3
+
     field_validator = validator.validator_field(request_data, rule)
     username = request_data['username']
     email = request_data['email']

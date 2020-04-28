@@ -279,6 +279,8 @@ class VisitEyeController(object):
         file_employee = "rest/file_import/beton_employee.csv"
 
         # proses file Customer Contact <file_cust_contact>
+
+        #import
         df_cust_contact = pd.read_csv(file_cust_contact, skiprows=0)
         df_parent = df_cust_contact[
             ['no', 'locationCode', 'email', 'name', 'position', 'telephone']
@@ -306,6 +308,8 @@ class VisitEyeController(object):
         dump_data_customer = []
         today = datetime.today()
         today = today.strftime("%Y-%m-%d %H:%M:%S")
+
+        # import
         df_cust = pd.read_csv(file_cust, skiprows=0)
         df_parent = df_cust[
             ['no', 'code', 'active', 'city', 'country', 'latitude', 'locationCode', 'locationName', 'longitude',
@@ -423,6 +427,8 @@ class VisitEyeController(object):
         data_user = []
         today = datetime.today()
         today = today.strftime("%Y-%m-%d %H:%M:%S")
+
+        # import
         df_user = pd.read_csv(file_user, skiprows=0)
         df_parent = df_user[['no', 'name']]
         df_parent.set_index("no", inplace=True)
