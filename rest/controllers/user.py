@@ -390,6 +390,7 @@ class UserController(object):
         if len(user) == 0:
             raise BadRequest("Wrong username or password", 500, 1, data=[])
         else:
+
             user = user[0]
             if user['employee_id'] is not None:
                 employee = self.employee_model.get_employee_by_id(self.cursor, user['employee_id'])[0]

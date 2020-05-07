@@ -504,6 +504,51 @@ def update_visit_plan_summary_cisangkan_split_img():
     return jsonify(response)
 
 
+@bp.route('/cisangkan/visit/plan/summary/collector', methods=['PUT'])
+# @jwt_required()
+def update_visit_plan_summary_cisangkan_collector():
+    cc = CisangkanController()
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+    try:
+        update_data = request.get_json(silent=True)
+        if(not cc.request_credential(update_data)): return invalid_message()
+    except:
+        raise BadRequest("Params is missing or error format, check double quatation", 500, 1, data=[])
+
+    isLogistic = (1 if update_data.get('isLogistic') else None)
+    isCollector = (1 if update_data.get('isCollector') else None)
+    input = cc.sterilize_input(update_data)
+    input["isLogistic"] = isLogistic
+    input["isCollector"]= isCollector
+    input_convert = cc.saveImageToPath(input)
+    user_id = input_convert["username"]
+    input_convert.pop("username")
+    input_data = cc.sterilize_input_div(input_convert)
+    visit_controller = VisitController()
+    summary_exist = visit_controller.check_visit_plan_summary(input_data["plan_id"], input_data["customer_code"])
+
+    if summary_exist:
+        summary_exist = summary_exist[0]
+        input_data['id'] = summary_exist['id']
+        visit_plan = cc.update_summary_plan(input_data)
+        msg = 'success update visit plan summary'
+    else:
+        visit_plan = cc.create_summary_plan_collector(input_data, user_id)
+        msg = 'success create visit plan summary'
+
+    if visit_plan:
+        response['error'] = 0
+        response['message'] = msg
+    else:
+        raise BadRequest('Failed create or update visit plan summary', 500, 1, data=[])
+
+    return jsonify(response)
+
+
 @bp.route('/cisangkan/visit/plan/<int:plan_id>/summary/<string:customer_code>', methods=["GET"])
 @jwt_required()
 def get_visit_plan_summary_split_img(plan_id, customer_code):

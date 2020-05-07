@@ -49,6 +49,8 @@ def statistic_sales_visit():
     response['error'] = 0
     response['data'] = result
 
+    # print("result : ", result)
+
     return jsonify(response)
 
 @bp.route('/statistic/collector/visit', methods=['GET'])
@@ -558,5 +560,17 @@ def statistic_performance_list_user(job):
 
     response['error'] = 0
     response['data'] = result
+
+    return jsonify(response)
+
+
+@bp.route('/statistic/test', methods=['GET'])
+@jwt_required()
+def statistic_test():
+    response = {
+        'error': 0,
+        'message': 'statistic test ok',
+        'data': []
+    }
 
     return jsonify(response)

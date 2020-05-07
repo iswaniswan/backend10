@@ -241,6 +241,31 @@ class CisangkanController(object):
 
         return last_insert_id
 
+    def create_summary_plan_collector(self, create_data: 'dict', user_id: 'int'):
+        today = datetime.today()
+        today = today.strftime("%Y-%m-%d %H:%M:%S")
+        
+        try:
+            result = self.cisangkan_visit_plan_summary_model.insert_into_db_collector(
+                self.cursor, 
+                plan_id=create_data["plan_id"], 
+                customer_code=create_data["customer_code"],
+                notes=create_data["notes"], 
+                visit_images=create_data["visit_images"],
+                have_competitor=create_data["have_competitor"], 
+                competitor_images=create_data["competitor_images"],
+                create_date=today,
+                update_date=today, 
+                create_by=user_id, 
+                collect_method=create_data["collect_method"]
+            )
+            mysql.connection.commit()
+            last_insert_id = self.cursor.lastrowid
+        except Exception as e:
+            raise BadRequest(e, 500, 1, data=[])
+
+        return last_insert_id        
+
 
     def update_summary_plan(self, update_data: 'dict'):
         try:
@@ -249,8 +274,8 @@ class CisangkanController(object):
         except Exception as e:
             raise BadRequest(e, 200, 1)
 
-        return result
-
+        return result  
+        
 
     def saveImageToPath(self, input : 'dict'):            
         if input['isLogistic']:
@@ -724,6 +749,3 @@ class CisangkanController(object):
         um = UserModel()
         user_data = um.get_user_by_id(self.cursor, user_id)
         return user_data[0]["username"]
-
-        
-        

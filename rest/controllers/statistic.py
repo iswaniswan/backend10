@@ -12,7 +12,10 @@ from rest.exceptions import BadRequest, RestException
 from rest.helpers import mysql, auto_correction_number_none
 from rest.models import VisitPlanModel, SalesActivityModel, PermissionsModel, BranchesModel, PermissionsModel, \
     BreakTimeModel, SalesPaymentMobileModel, SalesOrderModel, RequestOrderModel, DeliveryCycleModel, \
-    DeliveryPlanModel, DeliveryModel, PackingSlipModel, LogisticActivityModel
+    DeliveryPlanModel, DeliveryModel, PackingSlipModel, LogisticActivityModel, \
+    CisangkanVisitPlanSummaryModel, CisangkanUserModel, CisangkanStatisticModel
+
+    
 
 __author__ = 'Junior'
 
@@ -28,6 +31,9 @@ class SalesStatisticController(object):
         self.spm_model = SalesPaymentMobileModel()
         self.so_model = SalesOrderModel()
         self.ro_model = RequestOrderModel()
+        self.cs_model = CisangkanStatisticModel()
+        self.cs_user_model = CisangkanUserModel()
+        self.cs_vps = CisangkanVisitPlanSummaryModel()
 
     # custom code
 
@@ -120,6 +126,45 @@ class SalesStatisticController(object):
         data_statistic_visit['total_visit_actual'] = data_total
         data_statistic_visit['data_visit_actual'] = data_branch
 
+        # custom
+        # TODO get all sales id
+        sales = []
+        select = "u.id "
+        join = """u INNER JOIN divisions d ON division_id = d.id """
+        where="WHERE u.is_deleted = 0 AND d.id = '{0}' ".format(2)
+        try:
+            result = self.cs_user_model.m_get_custom_user_properties(self.cursor, select, join, where)
+        except Exception as e:
+            raise e
+
+        for k,v in enumerate(result):
+            sales.append(v['id'])
+
+        # TODO get summary tujuan visit
+        select = "category_visit, count(category_visit) as jml "
+        where = """WHERE category_visit is not NULL AND create_by IN ({}) """.format(", ".join(str(x) for x in sales),)
+        if start_date and end_date:
+            where += """AND (create_date >= '{0} 00:00:00' AND create_date <= '{1} 23:59:59') """.format(start_date, end_date)
+        else:
+            where += """AND (create_date LIKE '{}%')""".format(today)
+
+        where += """ GROUP BY category_visit"""
+
+        category_visit = dict()
+        try:
+            result = self.cs_vps.get_statistic_summary_visit(self.cursor, select, where)
+            
+            for k,v in enumerate(result):
+                category_visit.update({
+                    v["category_visit"]: v["jml"]
+                    })
+                
+        except Exception as e:
+            raise e
+
+        data_statistic_visit['category_visit'] = category_visit
+        # custom end
+
         return data_statistic_visit
 
     def get_statistic_visit_collector(self, branch_privilege: list, division_privilege: list, start_date: str, end_date: str):
@@ -147,6 +192,7 @@ class SalesStatisticController(object):
         count_plan = self.visit_plan_model.get_count_all_visit_plan_statistic(
             self.cursor, select=select, select_count=select_count, join=join, where=where_vp, group=group
         )
+        
         # TODO: Get Statistitic Actual Plan
         select = "br.id, br.name"
         select_from = """( SELECT act.* FROM (SELECT id, user_id, visit_plan_id, 
@@ -210,6 +256,58 @@ class SalesStatisticController(object):
         }
         data_statistic_visit['total_visit_actual'] = data_total
         data_statistic_visit['data_visit_actual'] = data_branch
+
+        # custom
+        # TODO get all collector id
+        sales = []
+        select = "u.id "
+        join = """u INNER JOIN divisions d ON division_id = d.id """
+        where="WHERE u.is_deleted = 0 AND d.id = '{0}' ".format(4)
+        try:
+            result = self.cs_user_model.m_get_custom_user_properties(self.cursor, select, join, where)
+        except Exception as e:
+            raise e
+
+        for k,v in enumerate(result):
+            sales.append(v['id'])
+
+        # TODO get summary tujuan visit
+        select = "collect_method, count(collect_method) as jml "
+        where = """WHERE collect_method is not NULL AND create_by IN ({}) """.format(", ".join(str(x) for x in sales),)
+        if start_date and end_date:
+            where += """AND (create_date >= '{0} 00:00:00' AND create_date <= '{1} 23:59:59') """.format(start_date, end_date)
+        else:
+            where += """AND (create_date LIKE '{}%')""".format(today)
+
+        where += """ GROUP BY collect_method"""
+
+        collect_method = dict()
+        try:
+            result = self.cs_vps.get_statistic_summary_visit(self.cursor, select, where)
+            
+            for k,v in enumerate(result):
+                if("," in v["collect_method"]):
+                    data = dict()
+                    val = v["jml"]
+                    arr = v["collect_method"].split(", ")
+                    for rec in arr:
+                        if(rec in collect_method):
+                            collect_method[rec] += val
+                        else:
+                            collect_method[rec] = val                    
+
+                else:
+                    if(v["collect_method"] in collect_method):
+                            collect_method[v["collect_method"]] += v["jml"]
+                    else:
+                        collect_method[v["collect_method"]] = v["jml"]
+                    
+                
+        except Exception as e:
+            raise e
+
+        data_statistic_visit['collect_method'] = collect_method
+        # custom end
 
         return data_statistic_visit
 

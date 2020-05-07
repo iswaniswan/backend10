@@ -143,11 +143,32 @@ class CisangkanVisitPlanSummaryModel(Model):
             raise e
 
 
+    def insert_into_db_collector(
+            self, cursor, plan_id, customer_code, notes, visit_images, have_competitor, competitor_images,
+            create_date, update_date, create_by, collect_method
+    ):
+        try:
+            value = {
+                "plan_id": plan_id, "customer_code": customer_code, "notes": notes, "visit_images": visit_images,
+                "have_competitor": have_competitor, "competitor_images": competitor_images,
+                "create_date": create_date, "update_date": update_date, "create_by": create_by, "collect_method": collect_method
+            }
+            return self.insert_ignore(cursor, value)
+        except Exception as e:
+            raise e
+
     def update_by_id(self, cursor, update_data):
         try:
             return self.update(cursor, update_data, 'id')
         except Exception as e:
             raise e
+
+    def get_statistic_summary_visit(self, cursor, select, where):
+        try:
+            return self.get(cursor, fields=select, where=where)
+        except Exception as e:
+            raise e
+
 
 
 class CisangkanPackingSlipModel(Model):
@@ -193,7 +214,13 @@ class CisangkanPackingSlipModel(Model):
         # self.change_charset_to_utf8mb4(cursor)
         try:
             sql = self.qb.insert(value, self.table_import, False)
-            print("import csv file " ,sql)
+            # print("import csv file " ,sql)
             return cursor.execute(sql)
         except Exception:
             raise
+
+class CisangkanStatisticModel(Model):
+    def __init__(self):
+        Model.__init__(self)
+        self.table_users = 'users'
+        self.table_divisions = 'divisions'
