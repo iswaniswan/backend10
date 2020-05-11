@@ -276,30 +276,72 @@ class CisangkanController(object):
 
         return result  
         
+    def genSuffixCollectMethod(self, suffix):
+        if("Cheque" in suffix):
+            suffix = suffix.replace("Cheque", "Cq")            
+        if("Giro" in suffix):
+            suffix = suffix.replace("Giro", "Go")
+        if("Kontra bon" in suffix):
+            suffix = suffix.replace("Kontra bon", "Kb")
+        if("Transfer" in suffix):
+            suffix = suffix.replace("Transfer", "Tf")
+        if("Tunai" in suffix):
+            suffix = suffix.replace("Tunai", "Tn")
+        if("Delivery invoice" in suffix):
+            suffix = suffix.replace("Delivery invoice", "Dv")
+        if("Tidak tertagih" in suffix):
+            suffix = suffix.replace("Tidak tertagih", "Tt")
+        if("," in suffix):
+            suffix = suffix.replace(",", "_")            
+        return suffix
 
     def saveImageToPath(self, input : 'dict'):            
+        suffix = None
         if input['isLogistic']:
             ROOT_IMAGES_PATH = current_app.config["UPLOAD_FOLDER_IMAGES"] + "/delivery_plan_summary/"
         elif input['isCollector']:
             ROOT_IMAGES_PATH = current_app.config["UPLOAD_FOLDER_IMAGES"] + "/collect_plan_summary/"
+            cm = input['collect_method']
+            suffix = self.genSuffixCollectMethod(cm)
         else:
             ROOT_IMAGES_PATH = current_app.config["UPLOAD_FOLDER_IMAGES"] + "/visit_plan_summary/"
+
         sales_id = input["username"]
+        sales_username = self.getUsernameById(sales_id)
         today = datetime.today()
         today = today.strftime("%Y%m%d")
         cm = CustomerModel()
         customer = cm.get_customer_by_id(self.cursor, input["customer_code"])
+                
         if(customer):
             customer_name = customer[0]["name"]
         else:
             customer_name = 'undefined'
-        curr_filename = "{0}_{1}_{2}_".format(sales_id, today, customer_name)
+
+        if input["isCollector"]:            
+            curr_filename = "{0}_{1}_{2}_{3}_".format(sales_username, today, input["customer_code"], suffix)            
+        else:
+            curr_filename = "{0}_{1}_{2}_".format(sales_username, today, customer_name)
+
         if (input["visit_images"] != None):
             current_path = ROOT_IMAGES_PATH + 'visit/'
-            for x in range(0, 10, 1):
-                fileToRemove = current_path + curr_filename + str(x) + ".jpg"
-                if os.path.exists(fileToRemove) :
-                    os.remove(fileToRemove)
+
+            if input["isCollector"]:
+                exist = self.cisangkan_visit_plan_summary_model.get_visit_plan_summary_by_plan_id_customer_code(self.cursor, input["plan_id"], input["customer_code"])
+                if exist :
+                    vi = json.loads(exist[0]["visit_images"])
+                    for x in vi:
+                        fileToRemove = x["image"]
+                        if os.path.exists(fileToRemove) :
+                            os.remove(fileToRemove)
+                else:
+                    print("no exist")
+            else:
+                for x in range(0, 10, 1):
+                    fileToRemove = current_path + curr_filename + str(x) + ".jpg"
+                    if os.path.exists(fileToRemove) :
+                        os.remove(fileToRemove)
+
             convert_data = []
             i = 0
             for dic in input['visit_images']:

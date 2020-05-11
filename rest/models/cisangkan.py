@@ -128,6 +128,15 @@ class CisangkanVisitPlanSummaryModel(Model):
         except Exception as e:
             raise e
 
+    def get_visit_plan_summary_by_plan_id_customer_code(self, cursor, plan_id, customer_code, _id=''):
+        try:
+            where = "WHERE `plan_id` = '{0}' AND `customer_code` = '{1}' ".format(plan_id, customer_code)
+            if _id:
+                where = "WHERE `plan_id` = '{0}' AND `customer_code` = '{1}' AND `id` != {1} ".format(plan_id, customer_code, _id)
+            return self.get(cursor, where=where)
+        except Exception as e:
+            raise e
+
     def insert_into_db(
             self, cursor, plan_id, customer_code, notes, visit_images, have_competitor, competitor_images,
             create_date, update_date, create_by, category_visit, nc
