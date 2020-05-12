@@ -292,7 +292,7 @@ class CisangkanController(object):
         if("Tidak tertagih" in suffix):
             suffix = suffix.replace("Tidak tertagih", "Tt")
         if("," in suffix):
-            suffix = suffix.replace(",", "_")            
+            suffix = suffix.replace(", ", "_")            
         return suffix
 
     def saveImageToPath(self, input : 'dict'):            
