@@ -57,6 +57,7 @@ def get_menu():
                 else:
                     if m.get('selected'):
                         del m['selected']
+                
                 if parent:
                     if m['code'] == parent:
                         m['expanded'] = True
@@ -66,7 +67,9 @@ def get_menu():
                 else:
                     if m.get('expanded'):
                         del m['expanded']
+                
                 if current_identity.permissions_group is not None:
+                    print("my permissions : ", current_identity.permissions)
                     if current_identity.permissions[m['code']]['rule-view'] == 10:
                         if current_identity.permissions_group[m['code']]['rule-view'] == 0:
                             m['hidden'] = True
@@ -85,6 +88,7 @@ def get_menu():
                     else:
                         if m.get('hidden'):
                             del m['hidden']
+                
                 child_menu = []
                 if m.get('children'):
                     for mn in m['children']:
@@ -205,6 +209,7 @@ def get_access_rule():
             else:
                 if rule_view == 10:
                     rule_view = 0
+        
         if current_identity.permissions[rec].get('data'):
             for rc in current_identity.permissions[rec]['data']:
                 if rc == menu_code:
@@ -254,6 +259,7 @@ def get_access_rule():
                                     if rule_view == 10:
                                         rule_view = 0
                                 break
+    
     refine_permissions = dict()
     if permission:
         refine_permissions = {

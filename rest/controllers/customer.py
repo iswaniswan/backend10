@@ -3,6 +3,9 @@ import json
 import time
 import pandas as pd
 import dateutil.parser
+# 
+import sys
+import operator
 
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -99,7 +102,7 @@ class CustomerController(object):
             del value['contact_name'], value['contact_notes'], value['contact_email'], value['contact_phone'], \
                 value['contact_mobile'], value['contact_job']
             batch_data.append(value)
-        print(batch_data)
+        # print(batch_data)
         # truncate = self.so_model.delete_table(self.cursor)
 
         for rec in batch_data:
@@ -516,42 +519,92 @@ class CustomerController(object):
         return customer
 
     def get_all_customer_by_area(self, polygon_list: list, job_function: list, data_filter: str):
-        """
-        Get List Of cutomer
-        :param: page: int
-        :param: limit: int
-        :param: search: str
-        :param: column: str
-        :param: direction: str
-        :param: lng: str
-        :param: lat: str
-        :param: list_customer: list
-        :return:
-            list customer Object
-        """
-        limit = 100000
+        limit = 1000
         customer = {}
         data = []
+        # 
+        start_date = data_filter['start_date'] + " 00:00:00"
+        end_date = data_filter['end_date'] + " 23:59:59"
+        # print("start_date: ", start_date, " end_date: ", end_date)
+        # 
         select = """customer.code"""
         if job_function == 'sales':
+            # get all user id by division, except collector
+            list_sales_id = []
+            where = """WHERE division_id IN (2, 5, 6) AND is_deleted = 0 """
+            query = self.user_model.get_all_user(self.cursor, select="id", where=where)
+            if query:
+                for sales in query:
+                    list_sales_id.append(str(sales['id']))
+
+
             if data_filter['user_id'] is not '':  # Jika array user_id lebih dari 0
                 data_filter_user_id = data_filter['user_id']
                 where = "LEFT JOIN sales_activity ON (sales_activity.nfc_code = customer.code) "
                 where += "WHERE ST_CONTAINS(ST_GEOMFROMTEXT('MULTIPOLYGON({0})'), POINT(lat, lng)) ".format(
                     ", ".join(x for x in polygon_list)
                 )
+                # get all user id by division, except kollector
                 where += "AND sales_activity.user_id IN ({0}) ".format(
                     data_filter_user_id
                 )
-                where += "AND customer.is_branch = 0 "
+                
+                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0"
                 where += "GROUP BY customer.code"
+
             else:
+                # where = "LEFT JOIN sales_activity ON (sales_activity.nfc_code = customer.code) "
                 where = "LEFT JOIN sales_activity ON (sales_activity.nfc_code = customer.code) "
                 where += "WHERE ST_CONTAINS(ST_GEOMFROMTEXT('MULTIPOLYGON({0})'), POINT(lat, lng)) ".format(
                     ", ".join(x for x in polygon_list)
                 )
-                where += "AND customer.is_branch = 0 "
+                # secara default ambil customer 30 hari ke belakang saja dan customer yg tidak dihapus
+                # where += "AND customer.is_branch = 0 "
+                where += "AND sales_activity.user_id IN ({0}) ".format(", ".join(x for x in list_sales_id))
+                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0 "
+                # today = today.strftime("%Y-%m-%d %H:%M:%S")
+                where += "AND (sales_activity.create_date >= '{0}' AND sales_activity.create_date <= '{1}') ".format(start_date, end_date)
                 where += "GROUP BY customer.code"
+
+        # custom collector
+        elif job_function == 'collector':
+            # get all collector id by division
+            list_collector_id = []
+            where = """WHERE division_id IN (4) AND is_deleted = 0 """
+            query = self.user_model.get_all_user(self.cursor, select="id", where=where)
+            if query:
+                for collector in query:
+                    list_collector_id.append(str(collector['id']))
+
+            if data_filter['user_id'] is not '':  # Jika array user_id lebih dari 0
+                data_filter_user_id = data_filter['user_id']
+                where = "LEFT JOIN sales_activity ON (sales_activity.nfc_code = customer.code) "
+                where += "WHERE ST_CONTAINS(ST_GEOMFROMTEXT('MULTIPOLYGON({0})'), POINT(lat, lng)) ".format(
+                    ", ".join(x for x in polygon_list)
+                )
+                # get all user id by division, except kollector
+                where += "AND sales_activity.user_id IN ({0}) ".format(
+                    data_filter_user_id
+                )
+                
+                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0"
+                where += "GROUP BY customer.code"
+
+            else:
+                # where = "LEFT JOIN sales_activity ON (sales_activity.nfc_code = customer.code) "
+                where = "LEFT JOIN sales_activity ON (sales_activity.nfc_code = customer.code) "
+                where += "WHERE ST_CONTAINS(ST_GEOMFROMTEXT('MULTIPOLYGON({0})'), POINT(lat, lng)) ".format(
+                    ", ".join(x for x in polygon_list)
+                )
+                # secara default ambil customer 30 hari ke belakang saja dan customer yg tidak dihapus
+                # where += "AND customer.is_branch = 0 "
+                where += "AND sales_activity.user_id IN ({0}) ".format(", ".join(x for x in list_collector_id))
+                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0 "
+                # today = today.strftime("%Y-%m-%d %H:%M:%S")
+                where += "AND (sales_activity.create_date >= '{0}' AND sales_activity.create_date <= '{1}') ".format(start_date, end_date)
+                where += "GROUP BY customer.code"
+        # 
+
         else:
             if data_filter['user_id'] is not '': # Jika array user_id lebih dari 0
                 data_filter_user_id = data_filter['user_id']
@@ -562,18 +615,21 @@ class CustomerController(object):
                 where += "AND logistic_activity.user_id IN ({0}) ".format(
                     data_filter_user_id
                 )
-                where += "AND customer.is_branch = 0 "
+                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0 "
                 where += "GROUP BY customer.code"
             else:
                 where = "LEFT JOIN logistic_activity ON (logistic_activity.nfc_code = customer.code) "
                 where += "WHERE ST_CONTAINS(ST_GEOMFROMTEXT('MULTIPOLYGON({0})'), POINT(lat, lng)) ".format(
                     ", ".join(x for x in polygon_list)
                 )
-                where += "AND customer.is_branch = 0 "
+                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0 "
                 where += "GROUP BY customer.code"
+
         customer_data = self.customer_model.get_all_customer(
             self.cursor, select=select, where=where, start=0, limit=limit
         )
+        
+        
         if customer_data:
             for emp in customer_data:
                 data.append(emp['code'])
@@ -592,6 +648,9 @@ class CustomerController(object):
             list customer Object
         """
         limit = 100000
+        # limit = 100
+        # sort by name for gantt
+        order = """ORDER BY customer.name ASC"""
         customer = {}
         data = []
         data_gantt = []
@@ -601,11 +660,12 @@ class CustomerController(object):
         if search:
             where += """AND (code LIKE '%{0}%' OR name LIKE '%{0}%') """.format(search)
         customer_data = self.customer_model.get_all_customer(
-            self.cursor, where=where, start=0, limit=limit
+            self.cursor, where=where, start=0, limit=limit, order=order
         )
         count = self.customer_model.get_count_all_customer(
             self.cursor, where=where
         )
+
         if customer_data:
             for emp in customer_data:
                 cust = {}
@@ -618,6 +678,7 @@ class CustomerController(object):
 
                 # Start For Sales
                 if job_function == "sales":
+                    
                     # TODO: Get Child data statistic
                     where_child = """WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 
                     AND `is_branch` = 1 AND parent_code = '{0}' """.format(emp['code'])
@@ -691,6 +752,109 @@ class CustomerController(object):
                                     "label": int(rec['total']) + child_data_total,
                                     "desc": "{0} Visit".format(int(rec['total']) + child_data_total),
                                 })
+                        
+                        for key, value in temp_statistic.items():
+                            data_statistic.append({
+                                'date': key,
+                                'total': value
+                            })
+
+                        # emp['data_statistic'] = data_statistic
+                        total = 0
+                        for rc in data_statistic:
+                            total += rc['total']
+                        emp['data_statistic_total'] = total
+                    except Exception as e:
+                        data_statistic = []
+                        data_statistic_gantt = []
+                        for key, value in temp_statistic.items():
+                            data_statistic.append({
+                                'date': key,
+                                'total': value
+                            })
+                        # emp['data_statistic'] = data_statistic
+                        emp['data_statistic_total'] = 0
+
+                # custom collector
+                elif job_function == "collector":
+                    
+                    # TODO: Get Child data statistic
+                    where_child = """WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 
+                    AND `is_branch` = 1 AND parent_code = '{0}' """.format(emp['code'])
+                    customer_child_data = self.customer_model.get_all_customer(
+                        self.cursor, where=where_child, start=0, limit=limit
+                    )
+                    temp_child_statistic = {}
+
+                    for cust_child in customer_child_data:
+                        s_date = datetime.strptime(data_filter['start_date'], "%Y-%m-%d")
+                        e_date = datetime.strptime(data_filter['end_date'], "%Y-%m-%d")
+                        # for single_date in date_range(s_date, e_date):
+                        #     temp_child_statistic[single_date.strftime("%Y-%m-%d")] = 0
+                        try:
+                            
+                            select = "DATE(sa.tap_nfc_date) AS date, "
+                            select_count = "COUNT(sa.id) AS total "
+
+                            if data_filter['user_id'] is not '':
+                                select_from = """(SELECT la.* FROM sales_activity AS la INNER JOIN visit_plan AS dp on la.visit_plan_id = dp.id WHERE la.user_id IN ({3}) AND la.tap_nfc_type = 'IN' AND dp.is_deleted = 0 AND (DATE(la.tap_nfc_date) BETWEEN '{0}' AND '{1}') AND la.nfc_code = '{2}' GROUP BY la.visit_plan_id, la.nfc_code, la.tap_nfc_type) as sa""".format(
+                                    data_filter['start_date'], data_filter['end_date'], cust_child['code'],
+                                    data_filter['user_id']
+                                )
+                            else:
+                                select_from = """(SELECT la.* FROM sales_activity AS la INNER JOIN visit_plan AS dp on la.visit_plan_id = dp.id WHERE la.tap_nfc_type = 'IN' AND dp.is_deleted = 0 AND (DATE(la.tap_nfc_date) BETWEEN '{0}' AND '{1}') AND la.nfc_code = '{2}' GROUP BY la.visit_plan_id, la.nfc_code, la.tap_nfc_type) as sa""".format(
+                                    data_filter['start_date'], data_filter['end_date'], cust_child['code']
+                                )
+                            group = " GROUP BY date"
+                            sales_child_statistic = self.sales_activity_model.get_count_all_activity_statistic(
+                                self.cursor, select=select, select_count=select_count, select_from=select_from, group=group
+                            )
+                            # if sales_child_statistic:
+                            for single_date in date_range(s_date, e_date):
+                                for rec in sales_child_statistic:
+                                    if rec['date'].strftime("%Y-%m-%d") == single_date.strftime("%Y-%m-%d"):
+                                        temp_child_statistic[single_date.strftime("%Y-%m-%d")] = int(rec['total'])
+                        except Exception as e:
+                            
+                            pass
+                    # TODO: Get data statistic sales
+                    s_date = datetime.strptime(data_filter['start_date'], "%Y-%m-%d")
+                    e_date = datetime.strptime(data_filter['end_date'], "%Y-%m-%d")
+                    temp_statistic = {}
+                    for single_date in date_range(s_date, e_date):
+                        temp_statistic[single_date.strftime("%Y-%m-%d")] = 0
+                    
+                    try:
+                        data_statistic = []
+                        data_statistic_gantt = []
+                        select = "DATE(sa.tap_nfc_date) AS date, "
+                        select_count = "COUNT(sa.id) AS total "
+
+                        if data_filter['user_id'] is not '':
+                            select_from = """(SELECT la.* FROM sales_activity AS la INNER JOIN visit_plan AS dp on la.visit_plan_id = dp.id WHERE la.user_id IN ({3}) AND la.tap_nfc_type = 'IN' AND dp.is_deleted = 0 AND (DATE(la.tap_nfc_date) BETWEEN '{0}' AND '{1}') AND la.nfc_code = '{2}' GROUP BY la.visit_plan_id, la.nfc_code, la.tap_nfc_type) as sa""".format(
+                                data_filter['start_date'], data_filter['end_date'], emp['code'], data_filter['user_id']
+                            )
+                        else:
+                            select_from = """(SELECT la.* FROM sales_activity AS la INNER JOIN visit_plan AS dp on la.visit_plan_id = dp.id WHERE la.tap_nfc_type = 'IN' AND dp.is_deleted = 0 AND (DATE(la.tap_nfc_date) BETWEEN '{0}' AND '{1}') AND la.nfc_code = '{2}' GROUP BY la.visit_plan_id, la.nfc_code, la.tap_nfc_type) as sa""".format(
+                                data_filter['start_date'], data_filter['end_date'], emp['code']
+                            )
+                        group = " GROUP BY date"
+                        sales_statistic = self.sales_activity_model.get_count_all_activity_statistic(
+                            self.cursor, select=select, select_count=select_count, select_from=select_from, group=group
+                        )
+                        if sales_statistic:
+                            for rec in sales_statistic:
+                                child_data_total = 0
+                                if temp_child_statistic:
+                                    if temp_child_statistic.get(rec['date'].strftime("%Y-%m-%d")):
+                                        child_data_total += temp_child_statistic[rec['date'].strftime("%Y-%m-%d")]
+                                temp_statistic[rec['date'].strftime("%Y-%m-%d")] = int(rec['total']) + child_data_total
+                                data_statistic_gantt.append({
+                                    "from": "/Date('{0}')/".format(rec['date'].strftime("%Y-%m-%d")),
+                                    "to": "/Date('{0}')/".format(rec['date'].strftime("%Y-%m-%d")),
+                                    "label": int(rec['total']) + child_data_total,
+                                    "desc": "{0} Visit".format(int(rec['total']) + child_data_total),
+                                })
 
                         for key, value in temp_statistic.items():
                             data_statistic.append({
@@ -713,8 +877,11 @@ class CustomerController(object):
                             })
                         # emp['data_statistic'] = data_statistic
                         emp['data_statistic_total'] = 0
+                                        
+                #                        
                 # Start For Logistic
                 else: #Start Logistic
+                    
                     # TODO: Get Child data statistic
                     where_child = """WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 
                                         AND `is_branch` = 1 AND parent_code = '{0}' """.format(emp['code'])

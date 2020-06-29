@@ -243,10 +243,13 @@ class SalesActivityController(object):
         data = []
         start = page * limit - limit
         order = ''
+        # where = """WHERE (vp.is_approval = 1 AND vp.is_deleted = 0) 
+        # AND (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
+        #     ", ".join(str(x) for x in branch_privilege), ", ".join(str(x) for x in division_privilege)
+        # )
         where = """WHERE (vp.is_approval = 1 AND vp.is_deleted = 0) 
         AND (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
-            ", ".join(str(x) for x in branch_privilege), ", ".join(str(x) for x in division_privilege)
-        )
+            ", ".join(str(x) for x in branch_privilege), 2)
         where_original = where
         if column:
             if column == 'start_branch':
@@ -980,6 +983,753 @@ class SalesActivityController(object):
         else:
             cycle['has_prev'] = False
         return cycle
+
+
+    def get_all_activity_data_by_visit_plan_collector(
+            self, page: int, limit: int, search: str, column: str, direction: str,
+            branch_privilege: list, division_privilege: list, data_filter: list
+    ):
+        cycle = {}
+        data = []
+        start = page * limit - limit
+        order = ''
+        where = """WHERE (vp.is_approval = 1 AND vp.is_deleted = 0) 
+        AND (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
+            ", ".join(str(x) for x in branch_privilege), 4)
+        where_original = where
+        if column:
+            if column == 'start_branch':
+                order = """ORDER BY b1.name {0}""".format(direction)
+            elif column == 'end_branch':
+                order = """ORDER BY b2.name {0}""".format(direction)
+            elif column == 'username':
+                order = """ORDER BY u.username {0}""".format(direction)
+            elif column == 'user':
+                order = """ORDER BY e.name {0}""".format(direction)
+            elif column == 'branch':
+                order = """ORDER BY br.name {0}""".format(direction)
+            elif column == 'division':
+                order = """ORDER BY dv.division_name {0}""".format(direction)
+            elif column == 'date':
+                order = """ORDER BY vp.{0} {1}, vp.create_date {1}""".format(column, direction)
+            else:
+                order = """ORDER BY vp.{0} {1}""".format(column, direction)
+        select = "vp.*"
+        select_count = "vp.id"
+        join = """as vp LEFT JOIN `users` as u ON vp.user_id = u.id 
+        LEFT JOIN `employee` as e ON u.employee_id = e.id
+        LEFT JOIN `branches` as br ON u.branch_id = br.id
+        LEFT JOIN `divisions` as dv ON u.division_id = dv.id
+        LEFT JOIN `branches` as b1 ON vp.start_route_branch_id = b1.id
+        LEFT JOIN `branches` as b2 ON vp.end_route_branch_id = b2.id"""
+        if search:
+            where += """AND (u.username LIKE '%{0}%' OR br.name LIKE '%{0}%' OR dv.division_name LIKE '%{0}%' 
+            OR b1.name LIKE '%{0}%' OR b2.name LIKE '%{0}%' OR e.name LIKE '%{0}%') """.format(search)
+        if data_filter:
+            data_filter = data_filter[0]
+            if data_filter['start_date']:
+                where += """AND (vp.date >= '{0} 00:00:00' AND vp.date <= '{1} 23:59:59') """.format(
+                    data_filter['start_date'], data_filter['end_date']
+                )
+            if data_filter['user_id']:
+                where += """AND u.id IN ({0}) """.format(", ".join(str(x) for x in data_filter['user_id']))
+            if data_filter['branch_id']:
+                where += """AND u.branch_id IN ({0}) """.format(", ".join(str(x) for x in data_filter['branch_id']))
+            if data_filter['division_id']:
+                where += """AND u.division_id IN ({0}) """.format(", ".join(str(x) for x in data_filter['division_id']))
+
+        # Mempersiapkan Query dan
+        # Check apakah sudah di approve juga data tidak dalam posisi telah dihapus, dan
+        # Check apakah user yang request memiliki hak akses untuk mendapatkan data ini
+        # branch_user = aliased(BranchesModelAlchemy, name="branch_user")
+        # branch_start = aliased(BranchesModelAlchemy, name="branch_start")
+        # branch_end = aliased(BranchesModelAlchemy, name="branch_end")
+        #
+        # division_user = aliased(DivisionModelAlchemy, name="division_user")
+        # visit_plan_query_prepare = session.query(VisitPlanModelAlchemy).join(
+        #     UserModelAlchemy,
+        #     VisitPlanModelAlchemy.user_id == UserModelAlchemy.id
+        # ).join(
+        #     EmployeeModelAlchemy,
+        #     UserModelAlchemy.employee_id == EmployeeModelAlchemy.id
+        # ).join(
+        #     branch_user,
+        #     UserModelAlchemy.branch_id == branch_user.id
+        # ).join(
+        #     division_user,
+        #     UserModelAlchemy.division_id == division_user.id
+        # ).join(
+        #     branch_start,
+        #     VisitPlanModelAlchemy.start_route_branch_id == branch_start.id
+        # ).join(
+        #     branch_end,
+        #     VisitPlanModelAlchemy.end_route_branch_id == branch_end.id
+        # ).filter(
+        #     VisitPlanModelAlchemy.is_approval == 1
+        # ).filter(
+        #     VisitPlanModelAlchemy.is_deleted == 0
+        # ).filter(
+        #     UserModelAlchemy.branch_id.in_(branch_privilege)
+        # ).filter(
+        #     UserModelAlchemy.division_id.in_(division_privilege)
+        # )
+        # find = "%{}%".format(search)
+        # # Search
+        # if search:
+        #     visit_plan_query_prepare = visit_plan_query_prepare.filter(
+        #         or_(
+        #             UserModelAlchemy.username.like(find), branch_user.name.like(find),
+        #             division_user.division_name.like(find), branch_start.name.like(find), branch_end.name.like(find),
+        #             EmployeeModelAlchemy.name.like(find)
+        #         )
+        #     )
+        # # Check data filter
+        # if data_filter:
+        #     # Filter berdasarkan branch_id
+        #     if data_filter['branch_id']:
+        #         visit_plan_query_prepare = visit_plan_query_prepare.filter(
+        #             UserModelAlchemy.branch_id.in_(data_filter['branch_id'])
+        #         )
+        #     # Filter berdasarkan division_id
+        #     if data_filter['division_id']:
+        #         visit_plan_query_prepare = visit_plan_query_prepare.filter(
+        #             UserModelAlchemy.division_id.in_(data_filter['division_id'])
+        #         )
+        #
+        #     # Filter berdasarkan start_date
+        #     if data_filter['start_date']:
+        #         visit_plan_query_prepare = visit_plan_query_prepare.filter(
+        #             VisitPlanModelAlchemy.date >= data_filter['start_date']
+        #         ).filter(
+        #             VisitPlanModelAlchemy.date <= data_filter['end_date']
+        #         )
+        #
+        #     # Filter berdasarkan user_id
+        #     if data_filter['user_id']:
+        #         visit_plan_query_prepare = visit_plan_query_prepare.filter(
+        #             VisitPlanModelAlchemy.user_id.in_(data_filter['user_id'])
+        #         )
+        # # Check Order Tabel
+        # if column:
+        #     if column == 'start_branch':
+        #         visit_plan_query_prepare = visit_plan_query_prepare.order_by(
+        #             desc(branch_start.name) if direction is "desc" else asc(branch_start.name)
+        #         )
+        #     elif column == 'end_branch':
+        #         visit_plan_query_prepare = visit_plan_query_prepare.order_by(
+        #             desc(branch_end.name) if direction is "desc" else asc(branch_end.name)
+        #         )
+        #     elif column == 'username':
+        #         visit_plan_query_prepare = visit_plan_query_prepare.order_by(
+        #             desc(UserModelAlchemy.username) if direction is "desc" else asc(UserModelAlchemy.username)
+        #         )
+        #     elif column == 'user':
+        #         visit_plan_query_prepare = visit_plan_query_prepare.order_by(
+        #             desc(EmployeeModelAlchemy.name) if direction is "desc" else asc(EmployeeModelAlchemy.name)
+        #         )
+        #     elif column == 'branch':
+        #         visit_plan_query_prepare = visit_plan_query_prepare.order_by(
+        #             desc(branch_user.name) if direction is "desc" else asc(branch_user.name)
+        #         )
+        #     elif column == 'division':
+        #         visit_plan_query_prepare = visit_plan_query_prepare.order_by(
+        #             desc(division_user.division_name) if direction is "desc" else asc(division_user.division_name)
+        #         )
+        #     elif column == 'date':
+        #         visit_plan_query_prepare = visit_plan_query_prepare.order_by(
+        #             (desc(VisitPlanModelAlchemy.date) if direction is "desc" else asc(VisitPlanModelAlchemy.date)),
+        #             (desc(VisitPlanModelAlchemy.create_date) if direction is "desc" else asc(
+        #                 VisitPlanModelAlchemy.create_date
+        #             ))
+        #         )
+        # else:
+        #     order = """ORDER BY vp.{0} {1}""".format(column, direction)
+        # count_all_visit_plan = visit_plan_query_prepare.count()
+        # count_filtered_visit_plan = visit_plan_query_prepare.limit(limit).offset(start).count()
+        # list_visit_plan = [VisitPlanModelAlchemy(x) for x in visit_plan_query_prepare.limit(limit).offset(start)]
+        visit_plan_data = self.visit_plan_model.get_all_visit_plan(
+            self.cursor, select=select, join=join, where=where, order=order, start=start, limit=limit
+        )
+        count_filter = self.visit_plan_model.get_count_all_visit_plan(
+            self.cursor, select=select_count, join=join, where=where
+        )
+        count = self.visit_plan_model.get_count_all_visit_plan(
+            self.cursor, select=select_count, join=join, where=where_original
+        )
+        if visit_plan_data:
+            for vp in visit_plan_data:
+                list_customer = []
+                list_visited_customer = []
+                list_new_customer = []
+                list_unvisit_customer = []
+
+                if vp['edit_data'] is not None:
+                    vp['edit_data'] = json.loads(vp['edit_data'])
+                if vp['date'] is not None:
+                    vp['date'] = str(vp['date'])
+                if vp['create_date'] is not None:
+                    vp['create_date'] = str(vp['create_date'])
+                if vp['update_date'] is not None:
+                    vp['update_date'] = str(vp['update_date'])
+
+                # Get Activity data
+                data_activity_dict = dict()
+                data_activity = []
+                list_nfc_code = []
+
+                plan_activity = []
+                try:
+                    # where = """WHERE (sa.id IN (SELECT MIN(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'START'
+                    # GROUP BY user_id, visit_plan_id, nfc_code) OR sa.id IN (SELECT MAX(id) FROM `sales_activity`
+                    # WHERE `tap_nfc_type` = 'STOP' GROUP BY user_id, visit_plan_id, nfc_code) OR sa.id IN (SELECT MIN(id)
+                    # FROM `sales_activity` WHERE `tap_nfc_type` = 'IN' GROUP BY user_id, visit_plan_id, nfc_code)
+                    # OR sa.id IN (SELECT MAX(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'OUT'
+                    # GROUP BY user_id, visit_plan_id, nfc_code)) AND (visit_plan_id = {0}) """.format(vp['id'])
+
+                    # query without grouping
+                    where = """ WHERE (
+                            sa.id IN (SELECT MIN(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'START' GROUP BY user_id, visit_plan_id, nfc_code) OR
+                            sa.id IN (SELECT MAX(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'STOP' GROUP BY user_id, visit_plan_id, nfc_code) OR
+                            sa.id IN (SELECT id FROM `sales_activity` WHERE `tap_nfc_type` = 'IN' ) OR
+                            sa.id IN (SELECT id FROM `sales_activity` WHERE `tap_nfc_type` = 'OUT')
+                        ) AND (visit_plan_id = {0}) """.format(vp['id'])
+                    order = ""
+                    select = "sa.*"
+                    join = """AS sa"""
+                    activity_data = self.sales_activity_model.get_all_activity(
+                        self.cursor, select=select, join=join, where=where, order=order, start=0, limit=1000
+                    )
+
+                    # Process data for Plan Activity key-> plan_activity
+                    if activity_data:
+                        for ad in activity_data:
+                            if ad['tap_nfc_date'] is not None:
+                                ad['tap_nfc_date'] = str(ad['tap_nfc_date'])
+                            if ad['create_date'] is not None:
+                                ad['create_date'] = str(ad['create_date'])
+                            if ad['update_date'] is not None:
+                                ad['update_date'] = str(ad['update_date'])
+
+                            ad['branch_name'] = None
+                            ad['branch_location'] = None
+                            if ad['tap_nfc_type'] == 'START' or ad['tap_nfc_type'] == 'STOP':
+                                if ad['nfc_code'] is not None:
+                                    try:
+                                        branch = self.branch_model.get_branches_by_id(self.cursor, ad['nfc_code'])[0]
+                                        ad['branch_name'] = branch['name']
+                                        ad['branch_location'] = branch['address']
+                                    except:
+                                        ad['branch_name'] = None
+                                        ad['branch_location'] = None
+                                if ad['route_breadcrumb'] is not None:
+                                    ad['route_breadcrumb'] = json.loads(ad['route_breadcrumb'])
+
+                            ad['customer_code'] = None
+                            ad['customer_name'] = None
+                            ad['customer_address'] = None
+                            if ad['tap_nfc_type'] == 'IN' or ad['tap_nfc_type'] == 'OUT':
+                                if ad['nfc_code'] is not None:
+                                    ad['customer_code'] = ad['nfc_code']
+                                    try:
+                                        customer = \
+                                            self.customer_model.get_customer_by_code(self.cursor, ad['nfc_code'],
+                                                                                     ignore_is_deleted=True)[0]
+                                        ad['customer_name'] = customer['name']
+                                        ad['customer_address'] = customer['address']
+                                    except:
+                                        ad['customer_name'] = None
+                                        ad['customer_address'] = None
+                                if ad['route_breadcrumb'] is not None:
+                                    ad['route_breadcrumb'] = json.loads(ad['route_breadcrumb'])
+
+                            if ad['user_id'] is not None:
+                                try:
+                                    ad['user'] = self.user_model.get_user_by_id(
+                                        self.cursor, ad['user_id'],
+                                        select="username, employee_id, branch_id, division_id"
+                                    )[0]
+                                    if ad['user']['employee_id'] is not None:
+                                        try:
+                                            ad['user']['name'] = self.employee_model.get_employee_by_id(
+                                                self.cursor,
+                                                ad['user']['employee_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['name'] = None
+                                    if ad['user']['branch_id'] is not None:
+                                        try:
+                                            ad['user']['branch_name'] = self.branch_model.get_branches_by_id(
+                                                self.cursor,
+                                                ad['user']['branch_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['branch_name'] = None
+                                    if ad['user']['division_id'] is not None:
+                                        try:
+                                            ad['user']['division_name'] = self.division_model.get_division_by_id(
+                                                self.cursor, ad['user']['division_id'], select="division_name")[0][
+                                                'division_name']
+                                        except:
+                                            ad['user']['division_name'] = None
+                                except:
+                                    ad['user'] = {}
+                            else:
+                                ad['user'] = {}
+
+                            # check activity checkin on customer, not checkin on branch
+                            if ad['nfc_code'] is not None and ad['customer_name'] is not None:
+                                if len(list_visited_customer) > 0:
+                                    if ad['nfc_code'] not in list_visited_customer:
+                                        list_visited_customer.append(ad['nfc_code'])
+                                else:
+                                    list_visited_customer.append(ad['nfc_code'])
+
+                            plan_activity.append(ad)
+
+                    if plan_activity:
+                        plan_activity_list = []
+                        for rec in plan_activity:
+                            plan_activity_dict = dict()
+                            # print("======== Plan Activity {0}".format(rec))
+                            if rec['tap_nfc_type'] == 'START':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['distance'] = 0
+                                plan_activity_dict['start_time'] = rec['tap_nfc_date']
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['start_location_custom'] = False
+                                    plan_activity_dict['start_location_name'] = rec['branch_name']
+                                    plan_activity_dict['start_location_address'] = rec['branch_location']
+                                else:
+                                    # custom start
+                                    plan_activity_dict['start_location_custom'] = True
+                                    plan_activity_dict['start_location_name'] = None
+                                    plan_activity_dict['start_location_address'] = rec['route_breadcrumb']['address']
+                                plan_activity_dict['start_location'] = rec['route_breadcrumb']
+
+                            if rec['tap_nfc_type'] == 'STOP':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['distance'] = 0
+                                plan_activity_dict['stop_time'] = rec['tap_nfc_date']
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['stop_location_custom'] = False
+                                    plan_activity_dict['stop_location_name'] = rec['branch_name']
+                                    plan_activity_dict['stop_location_address'] = rec['branch_location']
+                                else:
+                                    # custom stop
+                                    plan_activity_dict['stop_location_custom'] = True
+                                    plan_activity_dict['stop_location_name'] = None
+                                    plan_activity_dict['stop_location_address'] = rec['route_breadcrumb']['address']
+                                plan_activity_dict['stop_location'] = rec['route_breadcrumb']
+
+                            if rec['tap_nfc_type'] == 'IN':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['distance'] = rec['distance']
+                                plan_activity_dict['in_time'] = rec['tap_nfc_date']
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['in_location_custom'] = False
+                                    plan_activity_dict['in_location_name'] = rec['customer_name']
+                                    plan_activity_dict['in_location_address'] = rec['customer_address']
+                                else:
+                                    # custom checkin
+                                    plan_activity_dict['in_location_custom'] = True
+                                    plan_activity_dict['in_location_name'] = rec['customer_name']
+                                    plan_activity_dict['in_location_address'] = rec['route_breadcrumb']['address']
+
+                            if rec['tap_nfc_type'] == 'OUT':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['out_time'] = rec['tap_nfc_date']
+
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['out_location_custom'] = False
+                                    plan_activity_dict['out_location_name'] = rec['customer_name']
+                                    plan_activity_dict['out_location_address'] = rec['customer_address']
+                                else:
+                                    # custom checkout
+                                    plan_activity_dict['out_location_custom'] = True
+                                    plan_activity_dict['out_location_name'] = rec['customer_name']
+                                    plan_activity_dict['out_location_address'] = rec['route_breadcrumb']['address']
+
+                            plan_activity_list.append(plan_activity_dict)
+                        plan_result = []
+                        i = 0
+                        for plan in plan_activity_list:
+                            data_dict = dict()
+                            if plan.get('start_time'):
+                                data_dict['nfc_code'] = plan['nfc_code']
+                                data_dict['start_time'] = plan['start_time']
+                                data_dict['location_name'] = plan['start_location_name']
+                                data_dict['location_address'] = plan['start_location_address']
+                                data_dict['location_custom'] = plan['start_location_custom']
+                                data_dict['distance'] = plan['distance']
+                                data_dict['duration'] = 0
+
+                            if plan.get('in_time'):
+                                code = plan['nfc_code']
+                                data_dict['nfc_code'] = code
+                                data_dict['in_time'] = plan['in_time']
+                                data_dict['distance'] = plan['distance']
+                                data_dict['in_location_address'] = plan['in_location_address']
+                                data_dict['in_location_name'] = plan['in_location_name']
+                                data_dict['in_location_custom'] = plan['in_location_custom']
+                                next_idx = i
+                                next = next_idx + 1
+                                if plan_activity_list[next]['nfc_code'] == code and plan_activity_list[next][
+                                    'tap_nfc_type'] == 'OUT':
+                                    # Tap Type STOP found
+                                    data_dict['out_time'] = plan_activity_list[next]['out_time']
+                                    data_dict['out_location_address'] = plan_activity_list[next]['out_location_address']
+                                    data_dict['out_location_name'] = plan_activity_list[next]['out_location_name']
+                                    data_dict['out_location_custom'] = plan_activity_list[next]['out_location_custom']
+
+                                    # calculate duration
+                                    out_time = datetime.strptime(data_dict['out_time'], "%Y-%m-%d %H:%M:%S")
+                                    in_time = datetime.strptime(data_dict['in_time'], "%Y-%m-%d %H:%M:%S")
+                                    if out_time > in_time:
+                                        data_dict['duration'] = int((out_time - in_time).seconds / 60)
+                                    else:
+                                        data_dict['duration'] = 0
+                                else:
+                                    data_dict['out_time'] = None
+                                    data_dict['out_location_address'] = None
+                                    data_dict['out_location_name'] = None
+                                    data_dict['out_location_custom'] = False
+                                    data_dict['duration'] = 0
+
+                            if plan.get('stop_time'):
+                                data_dict['nfc_code'] = plan['nfc_code']
+                                data_dict['stop_time'] = plan['stop_time']
+                                data_dict['location_name'] = plan['stop_location_name']
+                                data_dict['location_address'] = plan['stop_location_address']
+                                data_dict['location_custom'] = plan['stop_location_custom']
+                                data_dict['distance'] = plan['distance']
+                                data_dict['duration'] = 0
+
+                            if data_dict:
+                                plan_result.append(data_dict)
+                            i += 1
+
+                        # calculate time range between activity
+                        # and add key order
+                        position = 0
+                        if plan_result:
+                            for plan in plan_result:
+                                plan['order'] = position
+                                if plan.get('start_time') and position == 0:
+                                    plan['time_range'] = 0
+                                else:
+                                    if plan.get('in_time'):
+                                        next_time = plan['in_time']
+                                    elif plan.get('stop_time'):
+                                        next_time = plan['stop_time']
+                                    else:
+                                        next_time = 0
+
+                                    post = position
+                                    index = post - 1
+                                    if index >= 0:
+                                        if plan_result[index].get('start_time'):
+                                            prev_time = plan_result[index]['start_time']
+                                        elif plan_result[index].get('out_time'):
+                                            prev_time = plan_result[index]['out_time']
+                                        else:
+                                            prev_time = 0
+                                    else:
+                                        prev_time = 0
+
+                                    if prev_time and next_time:
+                                        prev_time_fmt = datetime.strptime(prev_time, "%Y-%m-%d %H:%M:%S")
+                                        next_time_fmt = datetime.strptime(next_time, "%Y-%m-%d %H:%M:%S")
+                                        if next_time_fmt > prev_time_fmt:
+                                            plan['time_range'] = int((next_time_fmt - prev_time_fmt).seconds / 60)
+                                        else:
+                                            plan['time_range'] = 0
+                                    else:
+                                        plan['time_range'] = 0
+                                position += 1
+                            # print("result Plan Activity = {0}".format(plan_result))
+                        vp['plan_activity'] = plan_result
+                    else:
+                        vp['plan_activity'] = []
+
+                    # Process data for data Activity key-> data_activity
+                    # previous process before ignore grouping
+                    if activity_data:
+                        for ad in activity_data:
+                            if ad['tap_nfc_date'] is not None:
+                                ad['tap_nfc_date'] = str(ad['tap_nfc_date'])
+                            if ad['create_date'] is not None:
+                                ad['create_date'] = str(ad['create_date'])
+                            if ad['update_date'] is not None:
+                                ad['update_date'] = str(ad['update_date'])
+                            ad['branch_name'] = None
+                            if ad['tap_nfc_type'] == 'START' or ad['tap_nfc_type'] == 'STOP':
+                                if ad['nfc_code'] is not None:
+                                    try:
+                                        ad['branch_name'] = self.branch_model.get_branches_by_id(
+                                            self.cursor, ad['nfc_code'], select="""name"""
+                                        )[0]['name']
+                                    except:
+                                        ad['branch_name'] = None
+                                if ad['route_breadcrumb'] is not None:
+                                    ad['route_breadcrumb'] = json.loads(ad['route_breadcrumb']) if type(
+                                        ad['route_breadcrumb']) is str else ad['route_breadcrumb']
+                            ad['customer_code'] = None
+                            if ad['tap_nfc_type'] == 'IN' or ad['tap_nfc_type'] == 'OUT':
+                                if ad['nfc_code'] is not None:
+                                    ad['customer_code'] = ad['nfc_code']
+                            if ad['user_id'] is not None:
+                                try:
+                                    ad['user'] = self.user_model.get_user_by_id(
+                                        self.cursor, ad['user_id'],
+                                        select="username, employee_id, branch_id, division_id"
+                                    )[0]
+                                    if ad['user']['employee_id'] is not None:
+                                        try:
+                                            ad['user']['name'] = self.employee_model.get_employee_by_id(
+                                                self.cursor,
+                                                ad['user']['employee_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['name'] = None
+                                    if ad['user']['branch_id'] is not None:
+                                        try:
+                                            ad['user']['branch_name'] = self.branch_model.get_branches_by_id(
+                                                self.cursor,
+                                                ad['user']['branch_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['branch_name'] = None
+                                    if ad['user']['division_id'] is not None:
+                                        try:
+                                            ad['user']['division_name'] = self.division_model.get_division_by_id(
+                                                self.cursor, ad['user']['division_id'], select="division_name")[0][
+                                                'division_name']
+                                        except:
+                                            ad['user']['division_name'] = None
+                                except:
+                                    ad['user'] = {}
+                            else:
+                                ad['user'] = {}
+                            if ad['nfc_code'] is not None:
+                                data_activity_dict[ad['nfc_code']] = dict()
+                                list_nfc_code.append(ad['nfc_code'])
+                            data_activity.append(ad)
+                    if data_activity:
+                        for rec in data_activity:
+                            if rec['tap_nfc_type'] == 'START':
+                                data_activity_dict[rec['nfc_code']]['start_time'] = rec['tap_nfc_date']
+                                data_activity_dict[rec['nfc_code']]['distance'] = 0
+                            if rec['tap_nfc_type'] == 'STOP':
+                                data_activity_dict[rec['nfc_code']]['stop_time'] = rec['tap_nfc_date']
+                                data_activity_dict[rec['nfc_code']]['distance'] = 0
+                            if rec['tap_nfc_type'] == 'IN':
+                                data_activity_dict[rec['nfc_code']]['in_time'] = rec['tap_nfc_date']
+                                data_activity_dict[rec['nfc_code']]['distance'] = rec['distance']
+                            if rec['tap_nfc_type'] == 'OUT':
+                                data_activity_dict[rec['nfc_code']]['out_time'] = rec['tap_nfc_date']
+
+                        # Calculation duration
+                        unique_code = set(list_nfc_code)
+                        for code in unique_code:
+                            if data_activity_dict[code].get('in_time'):
+                                in_time = data_activity_dict[code]['in_time']
+                            else:
+                                in_time = 0
+                            if data_activity_dict[code].get('out_time'):
+                                out_time = data_activity_dict[code]['out_time']
+                            else:
+                                out_time = 0
+                            if in_time and out_time:
+                                out_time_fmt = datetime.strptime(out_time, "%Y-%m-%d %H:%M:%S")
+                                in_time_fmt = datetime.strptime(in_time, "%Y-%m-%d %H:%M:%S")
+                                data_activity_dict[code]['duration'] = int((out_time_fmt - in_time_fmt).seconds / 60)
+                            else:
+                                data_activity_dict[code]['duration'] = 0
+
+                    vp['data_activity'] = data_activity_dict
+                except Exception as e:
+                    print("Some Exception {}".format(e))
+                    vp['data_activity'] = dict()
+                    vp['plan_activity'] = []
+
+                # Get Data Performance
+                try:
+                    performance_date = vp['date'].split(" ")
+                    performance_date = performance_date[0]
+                    data_performance = self.get_statistic_performance_by_user_id(
+                        job_function='sales', user_ids=[vp['user_id']], start_date=performance_date,
+                        end_date=performance_date, plan_id=vp['id']
+                    )
+                    # vp['data_performance'] = data_performance
+
+                    # TODO Get Data Total Distance
+                    select = "*"
+                    where_distance = """WHERE user_id={0} AND tap_nfc_type='STOP' """.format(vp['user_id'])
+                    where_distance += """AND visit_plan_id={} """.format(vp['id'])
+                    where_distance += """AND (tap_nfc_date >= '{0} 00:00:00' AND tap_nfc_date <= '{1} 23:59:59') """.format(
+                        performance_date, performance_date)
+                    order = 'ORDER BY create_date ASC'
+                    data_distance = self.sales_activity_model.get_all_activity(self.cursor, select=select,
+                                                                               where=where_distance, order=order)
+                    total_distance = 0
+                    if data_distance:
+                        for rec_distance in data_distance:
+                            total_distance += rec_distance['total_distance']
+                    data_performance['total_distance'] = total_distance
+
+                    vp['data_performance'] = data_performance
+                except Exception as e:
+                    print(e)
+                    vp['data_performance'] = dict()
+                if vp['destination_order'] is not None:
+                    vp['destination_order'] = json.loads(vp['destination_order'])
+                if vp['destination'] is not None:
+                    vp['destination'] = json.loads(vp['destination'])
+                    idx = 0
+                    for rec in vp['destination']:
+                        try:
+                            customer = self.customer_model.get_customer_by_id(
+                                self.cursor, rec['customer_code'],
+                                select="name, email, phone, address, lng, lat, nfcid, contacts, business_activity")[0]
+                            vp['destination'][idx]['customer_name'] = customer['name']
+                            vp['destination'][idx]['customer_email'] = customer['email']
+                            vp['destination'][idx]['phone'] = customer['phone']
+                            vp['destination'][idx]['address'] = customer['address']
+                            vp['destination'][idx]['lng'] = customer['lng']
+                            vp['destination'][idx]['lat'] = customer['lat']
+                            vp['destination'][idx]['nfcid'] = customer['nfcid']
+                            if customer['contacts'] is not None:
+                                vp['destination'][idx]['contacts'] = json.loads(customer['contacts'])
+                            else:
+                                vp['destination'][idx]['contacts'] = None
+                            if customer['business_activity'] is not None:
+                                vp['destination'][idx]['business_activity'] = json.loads(customer['business_activity'])
+                            else:
+                                vp['destination'][idx]['business_activity'] = None
+                        except:
+                            vp['destination'][idx]['customer_name'] = None
+                            vp['destination'][idx]['customer_email'] = None
+                            vp['destination'][idx]['phone'] = None
+                            vp['destination'][idx]['address'] = None
+                            vp['destination'][idx]['lng'] = None
+                            vp['destination'][idx]['lat'] = None
+                            vp['destination'][idx]['nfcid'] = None
+                            vp['destination'][idx]['contacts'] = None
+                            vp['destination'][idx]['business_activity'] = None
+                        list_customer.append(rec['customer_code'])
+                        idx += 1
+                if vp['destination_new'] is not None:
+                    vp['destination_new'] = json.loads(vp['destination_new'])
+                    for rec in vp['destination_new']:
+                        list_new_customer.append(rec['customer_code'])
+
+                # process unvisited customer
+                list_all_customer = list_customer
+                list_all_customer.extend(list_new_customer)
+                if len(list_all_customer) >= len(list_visited_customer):
+                    diff = list(set(list_all_customer) - set(list_visited_customer))
+                    for code in diff:
+                        data_cust = dict()
+                        try:
+                            customer = self.customer_model.get_customer_by_id(
+                                self.cursor, code,
+                                select="name, email, phone, address, lng, lat, nfcid, contacts, business_activity")[0]
+                            data_cust['customer_name'] = customer['name']
+                            data_cust['customer_email'] = customer['email']
+                            data_cust['phone'] = customer['phone']
+                            data_cust['address'] = customer['address']
+                            data_cust['lng'] = customer['lng']
+                            data_cust['lat'] = customer['lat']
+                            data_cust['nfcid'] = customer['nfcid']
+                            if customer['contacts'] is not None:
+                                data_cust['contacts'] = json.loads(customer['contacts'])
+                            else:
+                                data_cust['contacts'] = None
+                            if customer['business_activity'] is not None:
+                                data_cust['business_activity'] = json.loads(customer['business_activity'])
+                            else:
+                                data_cust['business_activity'] = None
+                        except:
+                            data_cust['customer_name'] = None
+                            data_cust['customer_email'] = None
+                            data_cust['phone'] = None
+                            data_cust['address'] = None
+                            data_cust['lng'] = None
+                            data_cust['lat'] = None
+                            data_cust['nfcid'] = None
+                            data_cust['contacts'] = None
+                            data_cust['business_activity'] = None
+                        list_unvisit_customer.append(data_cust)
+
+                vp['unvisit_customer'] = list_unvisit_customer
+                vp['total_customer'] = len(set(list_customer))
+                if vp['user_id'] is not None:
+                    try:
+                        vp['user'] = self.user_model.get_user_by_id(
+                            self.cursor, vp['user_id'], select="username, employee_id, branch_id, division_id")[0]
+                    except:
+                        vp['user'] = {}
+                    if vp['user']['employee_id'] is not None:
+                        try:
+                            vp['user']['name'] = self.employee_model.get_employee_by_id(
+                                self.cursor, vp['user']['employee_id'], select="""name""")[0]['name']
+                        except:
+                            vp['user']['name'] = None
+                    if vp['user']['branch_id'] is not None:
+                        try:
+                            vp['user']['branch_name'] = self.branch_model.get_branches_by_id(
+                                self.cursor, vp['user']['branch_id'], select="""name""")[0]['name']
+                        except:
+                            vp['user']['branch_name'] = None
+                    if vp['user']['division_id'] is not None:
+                        try:
+                            vp['user']['division_name'] = self.division_model.get_division_by_id(
+                                self.cursor, vp['user']['division_id'], select="division_name")[0][
+                                'division_name']
+                        except:
+                            vp['user']['division_name'] = None
+                    else:
+                        vp['user']['division_name'] = None
+                else:
+                    vp['user'] = {}
+                if vp['start_route_branch_id'] is not None:
+                    try:
+                        vp['start_route_branch'] = self.branch_model.get_branches_by_id(
+                            self.cursor, vp['start_route_branch_id'], select="name, phone, address, email, lng, lat")[0]
+                    except:
+                        vp['start_route_branch'] = {}
+                else:
+                    vp['start_route_branch'] = {}
+                if vp['end_route_branch_id'] is not None:
+                    try:
+                        vp['end_route_branch'] = self.branch_model.get_branches_by_id(
+                            self.cursor, vp['start_route_branch_id'], select="name, phone, address, email, lng, lat")[0]
+                    except:
+                        vp['end_route_branch'] = {}
+                else:
+                    vp['end_route_branch'] = {}
+                del vp['route']
+
+                data.append(vp)
+        cycle['data'] = data
+        cycle['total'] = count
+        cycle['total_filter'] = count_filter
+
+        # TODO: Check Has Next and Prev
+        if cycle['total_filter'] > page * limit:
+            cycle['has_next'] = True
+        else:
+            cycle['has_next'] = False
+        if limit <= page * count_filter - count_filter:
+            cycle['has_prev'] = True
+        else:
+            cycle['has_prev'] = False
+        return cycle
+
 
     def get_all_export_activity_data_by_visit_plan(
             self, page: int, limit: int, search: str, column: str, direction: str,
@@ -2144,6 +2894,1076 @@ class SalesActivityController(object):
 
         return result_data
 
+    # custom collector
+    def get_all_export_activity_data_by_visit_plan_collector(
+        self, page: int, limit: int, search: str, column: str, direction: str,
+        branch_privilege: list, division_privilege: list, data_filter: list
+    ):
+        result_data = {}
+        cycle = {}
+        data = []
+        start = page * limit - limit
+        order = ''
+        where = """WHERE (vp.is_approval = 1 AND vp.is_deleted = 0) 
+        AND (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
+            ", ".join(str(x) for x in branch_privilege), 4)
+        where_original = where
+        if column:
+            if column == 'start_branch':
+                order = """ORDER BY b1.name {0}""".format(direction)
+            elif column == 'end_branch':
+                order = """ORDER BY b2.name {0}""".format(direction)
+            elif column == 'username':
+                order = """ORDER BY u.username {0}""".format(direction)
+            elif column == 'user':
+                order = """ORDER BY e.name {0}""".format(direction)
+            elif column == 'branch':
+                order = """ORDER BY br.name {0}""".format(direction)
+            elif column == 'division':
+                order = """ORDER BY dv.division_name {0}""".format(direction)
+            elif column == 'date':
+                order = """ORDER BY vp.{0} {1}, vp.create_date {1}""".format(column, direction)
+            else:
+                order = """ORDER BY vp.{0} {1}""".format(column, direction)
+        select = "vp.*"
+        select_count = "vp.id"
+        join = """as vp LEFT JOIN `users` as u ON vp.user_id = u.id 
+        LEFT JOIN `employee` as e ON u.employee_id = e.id
+        LEFT JOIN `branches` as br ON u.branch_id = br.id
+        LEFT JOIN `divisions` as dv ON u.division_id = dv.id
+        LEFT JOIN `branches` as b1 ON vp.start_route_branch_id = b1.id
+        LEFT JOIN `branches` as b2 ON vp.end_route_branch_id = b2.id"""
+        if search:
+            where += """AND (u.username LIKE '%{0}%' OR br.name LIKE '%{0}%' OR dv.division_name LIKE '%{0}%' 
+            OR b1.name LIKE '%{0}%' OR b2.name LIKE '%{0}%' OR e.name LIKE '%{0}%') """.format(search)
+        if data_filter:
+            tmp_data_filter = data_filter[0]
+            if tmp_data_filter['start_date']:
+                where += """AND (vp.date >= '{0} 00:00:00' AND vp.date <= '{1} 23:59:59') """.format(
+                    tmp_data_filter['start_date'], tmp_data_filter['end_date']
+                )
+            if tmp_data_filter['user_id']:
+                where += """AND u.id IN ({0}) """.format(", ".join(str(x) for x in tmp_data_filter['user_id']))
+            if tmp_data_filter['branch_id']:
+                where += """AND u.branch_id IN ({0}) """.format(", ".join(str(x) for x in tmp_data_filter['branch_id']))
+            if tmp_data_filter['division_id']:
+                where += """AND u.division_id IN ({0}) """.format(
+                    ", ".join(str(x) for x in tmp_data_filter['division_id']))
+
+        visit_plan_data = self.visit_plan_model.get_all_visit_plan(
+            self.cursor, select=select, join=join, where=where, order=order, start=start, limit=limit
+        )
+        
+        if visit_plan_data:
+            for vp in visit_plan_data:
+                list_customer = []
+                if vp['edit_data'] is not None:
+                    vp['edit_data'] = json.loads(vp['edit_data'])
+                if vp['date'] is not None:
+                    vp['date'] = str(vp['date'])
+                if vp['create_date'] is not None:
+                    vp['create_date'] = str(vp['create_date'])
+                if vp['update_date'] is not None:
+                    vp['update_date'] = str(vp['update_date'])
+
+                # Get Activity data
+                data_activity_dict = dict()
+                data_activity = []
+                list_nfc_code = []
+
+                plan_activity = []
+                try:
+                    # where = """WHERE (sa.id IN (SELECT MIN(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'START'
+                    # GROUP BY user_id, visit_plan_id, nfc_code) OR sa.id IN (SELECT MAX(id) FROM `sales_activity`
+                    # WHERE `tap_nfc_type` = 'STOP' GROUP BY user_id, visit_plan_id, nfc_code) OR sa.id IN (SELECT MIN(id)
+                    # FROM `sales_activity` WHERE `tap_nfc_type` = 'IN' GROUP BY user_id, visit_plan_id, nfc_code)
+                    # OR sa.id IN (SELECT MAX(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'OUT'
+                    # GROUP BY user_id, visit_plan_id, nfc_code)) AND (visit_plan_id = {0}) """.format(vp['id'])
+
+                    # query without grouping
+                    where = """ WHERE (
+                            sa.id IN (SELECT MIN(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'START' GROUP BY user_id, visit_plan_id, nfc_code) OR
+                            sa.id IN (SELECT MAX(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'STOP' GROUP BY user_id, visit_plan_id, nfc_code) OR
+                            sa.id IN (SELECT id FROM `sales_activity` WHERE `tap_nfc_type` = 'IN' ) OR
+                            sa.id IN (SELECT id FROM `sales_activity` WHERE `tap_nfc_type` = 'OUT')
+                        ) AND (visit_plan_id = {0}) """.format(vp['id'])
+                    order = ""
+                    select = "sa.*"
+                    join = """AS sa"""
+                    activity_data = self.sales_activity_model.get_all_activity(
+                        self.cursor, select=select, join=join, where=where, order=order, start=0, limit=1000
+                    )
+
+                    # Process data for Plan Activity key-> plan_activity
+                    if activity_data:
+                        for ad in activity_data:
+                            if ad['tap_nfc_date'] is not None:
+                                ad['tap_nfc_date'] = str(ad['tap_nfc_date'])
+                            if ad['create_date'] is not None:
+                                ad['create_date'] = str(ad['create_date'])
+                            if ad['update_date'] is not None:
+                                ad['update_date'] = str(ad['update_date'])
+
+                            ad['branch_name'] = None
+                            ad['branch_location'] = None
+                            if ad['tap_nfc_type'] == 'START' or ad['tap_nfc_type'] == 'STOP':
+                                if ad['nfc_code'] is not None:
+                                    try:
+                                        branch = self.branch_model.get_branches_by_id(self.cursor, ad['nfc_code'])[0]
+                                        ad['branch_name'] = branch['name']
+                                        ad['branch_location'] = branch['address']
+                                    except:
+                                        ad['branch_name'] = None
+                                        ad['branch_location'] = None
+                                if ad['route_breadcrumb'] is not None:
+                                    ad['route_breadcrumb'] = json.loads(ad['route_breadcrumb'])
+
+                            ad['customer_code'] = None
+                            ad['customer_name'] = None
+                            ad['customer_address'] = None
+                            # custom export
+                            # ad['customer_category'] = None
+
+                            if ad['tap_nfc_type'] == 'IN' or ad['tap_nfc_type'] == 'OUT':
+                                if ad['nfc_code'] is not None:
+                                    ad['customer_code'] = ad['nfc_code']
+                                    try:
+                                        customer = \
+                                            self.customer_model.get_customer_by_code(self.cursor, ad['nfc_code'])[0]
+                                        ad['customer_name'] = customer['name']
+                                        ad['customer_address'] = customer['address']
+                                        # custom export
+                                        # ad['customer_category'] = customer['category']
+                                    except:
+                                        ad['customer_name'] = None
+                                        ad['customer_address'] = None
+                                        # custom export
+                                        # ad['customer_category'] = None
+                                if ad['route_breadcrumb'] is not None:
+                                    ad['route_breadcrumb'] = json.loads(ad['route_breadcrumb'])
+
+                            if ad['user_id'] is not None:
+                                try:
+                                    ad['user'] = self.user_model.get_user_by_id(
+                                        self.cursor, ad['user_id'],
+                                        select="username, employee_id, branch_id, division_id"
+                                    )[0]
+                                    if ad['user']['employee_id'] is not None:
+                                        try:
+                                            ad['user']['name'] = self.employee_model.get_employee_by_id(
+                                                self.cursor,
+                                                ad['user']['employee_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['name'] = None
+                                    if ad['user']['branch_id'] is not None:
+                                        try:
+                                            ad['user']['branch_name'] = self.branch_model.get_branches_by_id(
+                                                self.cursor,
+                                                ad['user']['branch_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['branch_name'] = None
+                                    if ad['user']['division_id'] is not None:
+                                        try:
+                                            ad['user']['division_name'] = self.division_model.get_division_by_id(
+                                                self.cursor, ad['user']['division_id'], select="division_name")[0][
+                                                'division_name']
+                                        except:
+                                            ad['user']['division_name'] = None
+                                except:
+                                    ad['user'] = {}
+                            else:
+                                ad['user'] = {}
+
+                            plan_activity.append(ad)
+
+                    if plan_activity:
+                        plan_activity_list = []
+                        for rec in plan_activity:
+                            plan_activity_dict = dict()
+                            # print("======== Plan Activity {0}".format(rec))
+                            if rec['tap_nfc_type'] == 'START':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['distance'] = 0
+                                plan_activity_dict['start_time'] = rec['tap_nfc_date']
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['start_location_custom'] = False
+                                    plan_activity_dict['start_location_name'] = rec['branch_name']
+                                    plan_activity_dict['start_location_address'] = rec['branch_location']
+                                else:
+                                    # custom start
+                                    plan_activity_dict['start_location_custom'] = True
+                                    plan_activity_dict['start_location_name'] = None
+                                    plan_activity_dict['start_location_address'] = rec['route_breadcrumb']['address']
+                                plan_activity_dict['start_location'] = rec['route_breadcrumb']
+
+                            if rec['tap_nfc_type'] == 'STOP':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['distance'] = 0
+                                plan_activity_dict['stop_time'] = rec['tap_nfc_date']
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['stop_location_custom'] = False
+                                    plan_activity_dict['stop_location_name'] = rec['branch_name']
+                                    plan_activity_dict['stop_location_address'] = rec['branch_location']
+                                else:
+                                    # custom stop
+                                    plan_activity_dict['stop_location_custom'] = True
+                                    plan_activity_dict['stop_location_name'] = None
+                                    plan_activity_dict['stop_location_address'] = rec['route_breadcrumb']['address']
+                                plan_activity_dict['stop_location'] = rec['route_breadcrumb']
+
+                            if rec['tap_nfc_type'] == 'IN':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['distance'] = rec['distance']
+                                plan_activity_dict['in_time'] = rec['tap_nfc_date']
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['in_location_custom'] = False
+                                    plan_activity_dict['in_location_name'] = rec['customer_name']
+                                    plan_activity_dict['in_location_address'] = rec['customer_address']
+                                else:
+                                    # custom checkin
+                                    plan_activity_dict['in_location_custom'] = True
+                                    plan_activity_dict['in_location_name'] = rec['customer_name']
+                                    plan_activity_dict['in_location_address'] = rec['route_breadcrumb']['address']
+
+                            if rec['tap_nfc_type'] == 'OUT':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['out_time'] = rec['tap_nfc_date']
+
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['out_location_custom'] = False
+                                    plan_activity_dict['out_location_name'] = rec['customer_name']
+                                    plan_activity_dict['out_location_address'] = rec['customer_address']
+                                else:
+                                    # custom checkout
+                                    plan_activity_dict['out_location_custom'] = True
+                                    plan_activity_dict['out_location_name'] = rec['customer_name']
+                                    plan_activity_dict['out_location_address'] = rec['route_breadcrumb']['address']
+
+                            plan_activity_list.append(plan_activity_dict)
+                        plan_result = []
+                        i = 0
+                        for plan in plan_activity_list:
+                            data_dict = dict()
+                            if plan.get('start_time'):
+                                data_dict['nfc_code'] = plan['nfc_code']
+                                data_dict['start_time'] = plan['start_time']
+                                data_dict['location_name'] = plan['start_location_name']
+                                data_dict['location_address'] = plan['start_location_address']
+                                data_dict['location_custom'] = plan['start_location_custom']
+                                data_dict['distance'] = plan['distance']
+                                data_dict['duration'] = 0
+
+                            if plan.get('in_time'):
+                                code = plan['nfc_code']
+                                data_dict['nfc_code'] = code
+                                data_dict['in_time'] = plan['in_time']
+                                data_dict['distance'] = plan['distance']
+                                data_dict['in_location_address'] = plan['in_location_address']
+                                data_dict['in_location_name'] = plan['in_location_name']
+                                data_dict['in_location_custom'] = plan['in_location_custom']
+                                next_idx = i
+                                next = next_idx + 1
+                                if plan_activity_list[next]['nfc_code'] == code and plan_activity_list[next][
+                                    'tap_nfc_type'] == 'OUT':
+                                    # Tap Type STOP found
+                                    data_dict['out_time'] = plan_activity_list[next]['out_time']
+                                    data_dict['out_location_address'] = plan_activity_list[next]['out_location_address']
+                                    data_dict['out_location_name'] = plan_activity_list[next]['out_location_name']
+                                    data_dict['out_location_custom'] = plan_activity_list[next]['out_location_custom']
+
+                                    # calculate duration
+                                    out_time = datetime.strptime(data_dict['out_time'], "%Y-%m-%d %H:%M:%S")
+                                    in_time = datetime.strptime(data_dict['in_time'], "%Y-%m-%d %H:%M:%S")
+                                    if out_time > in_time:
+                                        data_dict['duration'] = int((out_time - in_time).seconds / 60)
+                                    else:
+                                        data_dict['duration'] = 0
+                                else:
+                                    data_dict['out_time'] = None
+                                    data_dict['out_location_address'] = None
+                                    data_dict['out_location_name'] = None
+                                    data_dict['out_location_custom'] = False
+                                    data_dict['duration'] = 0
+
+                            if plan.get('stop_time'):
+                                data_dict['nfc_code'] = plan['nfc_code']
+                                data_dict['stop_time'] = plan['stop_time']
+                                data_dict['location_name'] = plan['stop_location_name']
+                                data_dict['location_address'] = plan['stop_location_address']
+                                data_dict['location_custom'] = plan['stop_location_custom']
+                                data_dict['distance'] = plan['distance']
+                                data_dict['duration'] = 0
+
+                            if data_dict:
+                                plan_result.append(data_dict)
+                            i += 1
+
+                        # calculate time range between activity
+                        # and add key order
+                        position = 0
+                        if plan_result:
+                            for plan in plan_result:
+                                plan['order'] = position
+                                if plan.get('start_time') and position == 0:
+                                    plan['time_range'] = 0
+                                else:
+                                    if plan.get('in_time'):
+                                        next_time = plan['in_time']
+                                    elif plan.get('stop_time'):
+                                        next_time = plan['stop_time']
+                                    else:
+                                        next_time = 0
+
+                                    post = position
+                                    index = post - 1
+                                    if index >= 0:
+                                        if plan_result[index].get('start_time'):
+                                            prev_time = plan_result[index]['start_time']
+                                        elif plan_result[index].get('out_time'):
+                                            prev_time = plan_result[index]['out_time']
+                                        else:
+                                            prev_time = 0
+                                    else:
+                                        prev_time = 0
+
+                                    if prev_time and next_time:
+                                        prev_time_fmt = datetime.strptime(prev_time, "%Y-%m-%d %H:%M:%S")
+                                        next_time_fmt = datetime.strptime(next_time, "%Y-%m-%d %H:%M:%S")
+                                        if next_time_fmt > prev_time_fmt:
+                                            plan['time_range'] = int((next_time_fmt - prev_time_fmt).seconds / 60)
+                                        else:
+                                            plan['time_range'] = 0
+                                    else:
+                                        plan['time_range'] = 0
+                                position += 1
+                            # print("result Plan Activity = {0}".format(plan_result))
+                        vp['plan_activity'] = plan_result
+                    else:
+                        vp['plan_activity'] = []
+
+                    # Process data for data Activity key-> data_activity
+                    # previous process before ignore grouping
+                    if activity_data:
+                        for ad in activity_data:
+                            if ad['tap_nfc_date'] is not None:
+                                ad['tap_nfc_date'] = str(ad['tap_nfc_date'])
+                            if ad['create_date'] is not None:
+                                ad['create_date'] = str(ad['create_date'])
+                            if ad['update_date'] is not None:
+                                ad['update_date'] = str(ad['update_date'])
+                            ad['branch_name'] = None
+                            if ad['tap_nfc_type'] == 'START' or ad['tap_nfc_type'] == 'STOP':
+                                if ad['nfc_code'] is not None:
+                                    try:
+                                        ad['branch_name'] = self.branch_model.get_branches_by_id(
+                                            self.cursor, ad['nfc_code'], select="""name"""
+                                        )[0]['name']
+                                    except:
+                                        ad['branch_name'] = None
+                                if ad['route_breadcrumb'] is not None:
+                                    ad['route_breadcrumb'] = json.loads(json.dumps(ad['route_breadcrumb']))
+                            ad['customer_code'] = None
+                            if ad['tap_nfc_type'] == 'IN' or ad['tap_nfc_type'] == 'OUT':
+                                if ad['nfc_code'] is not None:
+                                    ad['customer_code'] = ad['nfc_code']
+                            if ad['user_id'] is not None:
+                                try:
+                                    ad['user'] = self.user_model.get_user_by_id(
+                                        self.cursor, ad['user_id'],
+                                        select="username, employee_id, branch_id, division_id"
+                                    )[0]
+                                    if ad['user']['employee_id'] is not None:
+                                        try:
+                                            ad['user']['name'] = self.employee_model.get_employee_by_id(
+                                                self.cursor,
+                                                ad['user']['employee_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['name'] = None
+                                    if ad['user']['branch_id'] is not None:
+                                        try:
+                                            ad['user']['branch_name'] = self.branch_model.get_branches_by_id(
+                                                self.cursor,
+                                                ad['user']['branch_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['branch_name'] = None
+                                    if ad['user']['division_id'] is not None:
+                                        try:
+                                            ad['user']['division_name'] = self.division_model.get_division_by_id(
+                                                self.cursor, ad['user']['division_id'], select="division_name")[0][
+                                                'division_name']
+                                        except:
+                                            ad['user']['division_name'] = None
+                                except:
+                                    ad['user'] = {}
+                            else:
+                                ad['user'] = {}
+                            if ad['nfc_code'] is not None:
+                                data_activity_dict[ad['nfc_code']] = dict()
+                                list_nfc_code.append(ad['nfc_code'])
+                            data_activity.append(ad)
+                    if data_activity:
+                        for rec in data_activity:
+                            if rec['tap_nfc_type'] == 'START':
+                                data_activity_dict[rec['nfc_code']]['start_time'] = rec['tap_nfc_date']
+                                data_activity_dict[rec['nfc_code']]['distance'] = 0
+                            if rec['tap_nfc_type'] == 'STOP':
+                                data_activity_dict[rec['nfc_code']]['stop_time'] = rec['tap_nfc_date']
+                                data_activity_dict[rec['nfc_code']]['distance'] = 0
+                            if rec['tap_nfc_type'] == 'IN':
+                                data_activity_dict[rec['nfc_code']]['in_time'] = rec['tap_nfc_date']
+                                data_activity_dict[rec['nfc_code']]['distance'] = rec['distance']
+                            if rec['tap_nfc_type'] == 'OUT':
+                                data_activity_dict[rec['nfc_code']]['out_time'] = rec['tap_nfc_date']
+
+                        # Calculation duration
+                        unique_code = set(list_nfc_code)
+                        for code in unique_code:
+                            if data_activity_dict[code].get('in_time'):
+                                in_time = data_activity_dict[code]['in_time']
+                            else:
+                                in_time = 0
+                            if data_activity_dict[code].get('out_time'):
+                                out_time = data_activity_dict[code]['out_time']
+                            else:
+                                out_time = 0
+                            if in_time and out_time:
+                                out_time_fmt = datetime.strptime(out_time, "%Y-%m-%d %H:%M:%S")
+                                in_time_fmt = datetime.strptime(in_time, "%Y-%m-%d %H:%M:%S")
+                                data_activity_dict[code]['duration'] = int((out_time_fmt - in_time_fmt).seconds / 60)
+                            else:
+                                data_activity_dict[code]['duration'] = 0
+
+                    vp['data_activity'] = data_activity_dict
+                except Exception as e:
+                    exc_type, exc_obj, exc_tb = sys.exc_info()
+                    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                    print("Kesalahan {}".format(e), exc_type, fname, exc_tb.tb_lineno)
+                    vp['data_activity'] = dict()
+                    vp['plan_activity'] = []
+
+                # Get Data Performance
+                try:
+                    performance_date = vp['date'].split(" ")
+                    performance_date = performance_date[0]
+                    data_performance = self.get_statistic_performance_by_user_id(
+                        job_function='sales', user_ids=[vp['user_id']], start_date=performance_date,
+                        end_date=performance_date, plan_id=vp['id']
+                    )
+                    # vp['data_performance'] = data_performance
+
+                    # TODO Get Data Total Distance
+                    select = "*"
+                    where_distance = """WHERE user_id={0} AND tap_nfc_type='STOP' """.format(vp['user_id'])
+                    where_distance += """AND visit_plan_id={} """.format(vp['id'])
+                    where_distance += """AND (tap_nfc_date >= '{0} 00:00:00' AND tap_nfc_date <= '{1} 23:59:59') """.format(
+                        performance_date, performance_date)
+                    order = 'ORDER BY create_date ASC'
+                    data_distance = self.sales_activity_model.get_all_activity(self.cursor, select=select,
+                                                                               where=where_distance, order=order)
+                    total_distance = 0
+                    if data_distance:
+                        for rec_distance in data_distance:
+                            total_distance += rec_distance['total_distance']
+                    data_performance['total_distance'] = total_distance
+
+                    vp['data_performance'] = data_performance
+                except Exception as e:
+                    print(e)
+                    vp['data_performance'] = dict()
+                if vp['destination_order'] is not None:
+                    vp['destination_order'] = json.loads(vp['destination_order'])
+                if vp['destination'] is not None:
+                    vp['destination'] = json.loads(vp['destination'])
+                    idx = 0
+                    for rec in vp['destination']:
+                        try:
+                            customer = self.customer_model.get_customer_by_id(
+                                self.cursor, rec['customer_code'],
+                                select="name, email, phone, address, lng, lat, nfcid, contacts, business_activity, category")[0]
+                            vp['destination'][idx]['customer_name'] = customer['name']
+                            vp['destination'][idx]['customer_email'] = customer['email']
+                            vp['destination'][idx]['phone'] = customer['phone']
+                            vp['destination'][idx]['address'] = customer['address']
+                            vp['destination'][idx]['lng'] = customer['lng']
+                            vp['destination'][idx]['lat'] = customer['lat']
+                            vp['destination'][idx]['nfcid'] = customer['nfcid']
+                            vp['destination'][idx]['customer_category'] = customer['category']
+                            
+                            if customer['contacts'] is not None:
+                                vp['destination'][idx]['contacts'] = json.loads(customer['contacts'])
+                            else:
+                                vp['destination'][idx]['contacts'] = None
+                            if customer['business_activity'] is not None:
+                                vp['destination'][idx]['business_activity'] = json.loads(customer['business_activity'])
+                            else:
+                                vp['destination'][idx]['business_activity'] = None
+                            try:
+                                summary = self.visit_plan_summary_model.get_visit_plan_summary_by_plan_id_customer_code(
+                                    self.cursor, vp['id'], rec['customer_code']
+                                )
+                                if len(summary) == 0:
+                                    vp['destination'][idx]['summary'] = None
+                                else:
+                                    summary = summary[0]
+                                    del summary['visit_images']
+                                    del summary['competitor_images']
+                                    if summary['create_date'] is not None:
+                                        summary['create_date'] = str(summary['create_date'])
+                                    if summary['update_date'] is not None:
+                                        summary['update_date'] = str(summary['update_date'])
+                                    vp['destination'][idx]['summary'] = summary
+                            except:
+                                vp['destination'][idx]['summary'] = None
+                        except:
+                            vp['destination'][idx]['customer_name'] = None
+                            vp['destination'][idx]['customer_email'] = None
+                            vp['destination'][idx]['phone'] = None
+                            vp['destination'][idx]['address'] = None
+                            vp['destination'][idx]['lng'] = None
+                            vp['destination'][idx]['lat'] = None
+                            vp['destination'][idx]['nfcid'] = None
+                            vp['destination'][idx]['contacts'] = None
+                            vp['destination'][idx]['business_activity'] = None
+                            vp['destination'][idx]['summary'] = None
+                            vp['destination'][idx]['customer_category'] = None
+    
+                        list_customer.append(rec['customer_code'])
+                        idx += 1
+                if vp['destination_new'] is not None:
+                    vp['destination_new'] = json.loads(vp['destination_new'])
+                    idx = 0
+                    for rec_new in vp['destination_new']:
+                        try:
+                            customer = self.customer_model.get_customer_by_id(
+                                self.cursor, rec_new['customer_code'],
+                                select="name, email, phone, address, lng, lat, nfcid, contacts, business_activity, category")[0]
+                            vp['destination_new'][idx]['customer_name'] = customer['name']
+                            vp['destination_new'][idx]['customer_email'] = customer['email']
+                            vp['destination_new'][idx]['phone'] = customer['phone']
+                            vp['destination_new'][idx]['address'] = customer['address']
+                            vp['destination_new'][idx]['lng'] = customer['lng']
+                            vp['destination_new'][idx]['lat'] = customer['lat']
+                            vp['destination_new'][idx]['nfcid'] = customer['nfcid']
+                            vp['destination_new'][idx]['customer_category'] = customer['category']
+                            # test
+                            # print("destination new customer category : ", customer['category'])
+                            # test
+                            if customer['contacts'] is not None:
+                                vp['destination_new'][idx]['contacts'] = json.loads(customer['contacts'])
+                            else:
+                                vp['destination_new'][idx]['contacts'] = None
+                            if customer['business_activity'] is not None:
+                                vp['destination_new'][idx]['business_activity'] = json.loads(
+                                    customer['business_activity'])
+                            else:
+                                vp['destination_new'][idx]['business_activity'] = None
+                            try:
+                                summary = self.visit_plan_summary_model.get_visit_plan_summary_by_plan_id_customer_code(
+                                    self.cursor, vp['id'], rec_new['customer_code']
+                                )
+                                if len(summary) == 0:
+                                    vp['destination_new'][idx]['summary'] = None
+                                else:
+                                    summary = summary[0]
+                                    del summary['visit_images']
+                                    del summary['competitor_images']
+                                    if summary['create_date'] is not None:
+                                        summary['create_date'] = str(summary['create_date'])
+                                    if summary['update_date'] is not None:
+                                        summary['update_date'] = str(summary['update_date'])
+                                    vp['destination_new'][idx]['summary'] = summary
+                            except:
+                                vp['destination_new'][idx]['summary'] = None
+                        except:
+                            vp['destination_new'][idx]['customer_name'] = None
+                            vp['destination_new'][idx]['customer_email'] = None
+                            vp['destination_new'][idx]['phone'] = None
+                            vp['destination_new'][idx]['address'] = None
+                            vp['destination_new'][idx]['lng'] = None
+                            vp['destination_new'][idx]['lat'] = None
+                            vp['destination_new'][idx]['nfcid'] = None
+                            vp['destination_new'][idx]['contacts'] = None
+                            vp['destination_new'][idx]['business_activity'] = None
+                            vp['destination_new'][idx]['summary'] = None
+                            vp['destination_new'][idx]['customer_category'] = None
+                        list_customer.append(rec_new['customer_code'])
+                        idx += 1
+                # vc['customer'] = list_customer
+                vp['total_customer'] = len(set(list_customer))
+                if vp['user_id'] is not None:
+                    try:
+                        vp['user'] = self.user_model.get_user_by_id(
+                            self.cursor, vp['user_id'], select="username, employee_id, branch_id, division_id")[0]
+                    except:
+                        vp['user'] = {}
+                    if vp['user']['employee_id'] is not None:
+                        try:
+                            vp['user']['name'] = self.employee_model.get_employee_by_id(
+                                self.cursor, vp['user']['employee_id'], select="""name""")[0]['name']
+                        except:
+                            vp['user']['name'] = None
+                    if vp['user']['branch_id'] is not None:
+                        try:
+                            vp['user']['branch_name'] = self.branch_model.get_branches_by_id(
+                                self.cursor, vp['user']['branch_id'], select="""name""")[0]['name']
+                        except:
+                            vp['user']['branch_name'] = None
+                    if vp['user']['division_id'] is not None:
+                        try:
+                            vp['user']['division_name'] = self.division_model.get_division_by_id(
+                                self.cursor, vp['user']['division_id'], select="division_name")[0][
+                                'division_name']
+                        except:
+                            vp['user']['division_name'] = None
+                    else:
+                        vp['user']['division_name'] = None
+                else:
+                    vp['user'] = {}
+                if vp['start_route_branch_id'] is not None:
+                    try:
+                        vp['start_route_branch'] = self.branch_model.get_branches_by_id(
+                            self.cursor, vp['start_route_branch_id'], select="name, phone, address, email, lng, lat")[0]
+                    except:
+                        vp['start_route_branch'] = {}
+                else:
+                    vp['start_route_branch'] = {}
+                if vp['end_route_branch_id'] is not None:
+                    try:
+                        vp['end_route_branch'] = self.branch_model.get_branches_by_id(
+                            self.cursor, vp['start_route_branch_id'], select="name, phone, address, email, lng, lat")[0]
+                    except:
+                        vp['end_route_branch'] = {}
+                else:
+                    vp['end_route_branch'] = {}
+                del vp['route']
+
+                data.append(vp)
+        output = BytesIO()
+
+        workbook = xlsxwriter.Workbook(output)
+        worksheet = workbook.add_worksheet('Data Visit Plan')
+        # custom export
+        single_header_format = workbook.add_format(
+            {
+                'bold': 1,
+                'border': 0,
+                'align': 'left',
+                'valign': 'vcenter'
+            }
+        )
+        merge_format = workbook.add_format(
+            {
+                'bold': 1,
+                'border': 0,
+                'align': 'left',
+                'valign': 'vcenter'
+            }
+        )
+        merge_format_start_end = workbook.add_format(
+            {
+                'bold': 1,
+                'border': 0,
+                'align': 'left',
+                'valign': 'vcenter',
+                'bg_color': '#99ff66'
+            }
+        )
+        header_format = workbook.add_format(
+            {
+                'bold': 1,
+                'border': 0,
+                'align': 'center',
+                'valign': 'vcenter',
+                'bg_color':'#00b0f0'
+                # 'bg_color': '#bababa'
+            }
+        )
+        highlight_format = workbook.add_format(
+            {
+                'bold': 0,
+                'border': 0,
+                'align': 'left',
+                'valign': 'vcenter',
+                'bg_color': '#f1f1f1'
+            }
+        )
+        # Header sheet
+        if data_filter:
+            data_filter = data_filter[0]
+            if data_filter['start_date'] and not data_filter['user_id']:
+                worksheet.merge_range(
+                    # 'A1:N1',
+                    'A1:Q1',
+                    'VISIT PLAN (USER: ALL, TANGGAL: {0} s/d {1})'.format(
+                        datetime.strptime(data_filter['start_date'], "%Y-%m-%d").strftime("%d-%m-%Y"),
+                        datetime.strptime(data_filter['end_date'], "%Y-%m-%d").strftime("%d-%m-%Y")
+                    ),
+                    merge_format
+                )
+            elif data_filter['user_id'] and not data_filter['start_date']:
+                worksheet.merge_range(
+                    # 'A1:N1',
+                    'A1:Q1',
+                    'VISIT PLAN (USER: {0}, TANGGAL: ALL)'.format(", ".join(x for x in data_filter['username'])),
+                    merge_format
+                )
+            else:
+                worksheet.merge_range(
+                    # 'A1:N1',
+                    'A1:Q1',
+                    'VISIT PLAN (USER: {0}, TANGGAL: {1} s/d {2})'.format(
+                        ", ".join(x for x in data_filter['username']),
+                        datetime.strptime(data_filter['start_date'], "%Y-%m-%d").strftime("%d-%m-%Y"),
+                        datetime.strptime(data_filter['end_date'], "%Y-%m-%d").strftime("%d-%m-%Y")
+                    ),
+                    merge_format
+                )
+        else:
+            worksheet.merge_range(
+                # 'A1:N1', 
+                'A1:Q1',
+                'VISIT PLAN (USER: ALL, TANGGAL: ALL)', merge_format
+                )
+
+        worksheet.merge_range('A3:B3', 'TANGGAL', header_format)
+        worksheet.write('C3', 'SALES REP', header_format)
+        worksheet.write('D3', 'BRANCH', header_format)
+        worksheet.write('E3', 'DIVISION', header_format)
+        worksheet.merge_range('F3:G3', 'BREAK TIME (Minutes)', header_format)
+        worksheet.write('H3', 'VISITED', header_format)
+        worksheet.merge_range('I3:J3', 'VISIT TIME (Minutes)', header_format)
+        worksheet.merge_range('K3:L3', 'DRIVING TIME (Minutes)', header_format)
+        worksheet.write('M3', 'PLAN', header_format)
+        worksheet.write('N3', 'NEW', header_format)
+        worksheet.write('O3', 'ALERT', header_format)
+        worksheet.write('P3', 'PERMISSION', header_format)
+        worksheet.write('Q3', 'CANCEL', header_format)
+        # custom export
+        worksheet.set_row(2, 30)
+
+        data_rows = 3
+        for rec in data:
+            # custom format
+            worksheet.merge_range(data_rows, 0, data_rows, 1,
+                            datetime.strptime(rec['date'], "%Y-%m-%d %H:%M:%S").strftime("%d-%m-%Y"),
+                            highlight_format)
+            worksheet.write(data_rows, 2, rec['user']['name'], highlight_format)
+            worksheet.write(data_rows, 3, rec['user']['branch_name'], highlight_format)
+            worksheet.write(data_rows, 4, rec['user']['division_name'], highlight_format)
+            if len(rec['data_performance']) != 0:
+                worksheet.merge_range(data_rows, 5, data_rows, 6, rec['data_performance']['break_time'], highlight_format)
+                worksheet.write(data_rows, 7, rec['data_performance']['visited'], highlight_format)
+                worksheet.merge_range(data_rows, 8, data_rows, 9, rec['data_performance']['visit_time'], highlight_format)
+                worksheet.merge_range(data_rows, 10, data_rows, 11, rec['data_performance']['driving_time'], highlight_format)
+                worksheet.write(data_rows, 12, rec['data_performance']['plan'], highlight_format)
+                worksheet.write(data_rows, 13, rec['data_performance']['new'], highlight_format)
+                worksheet.write(data_rows, 14, rec['data_performance']['alert'], highlight_format)
+                worksheet.write(data_rows, 15, rec['data_performance']['permission'], highlight_format)
+                worksheet.write(data_rows, 16, rec['data_performance']['cancel'], highlight_format)
+            else:
+                worksheet.merge_range(data_rows, 5, data_rows, 6, 0)
+                worksheet.write(data_rows, 7, 0)
+                worksheet.merge_range(data_rows, 8, data_rows, 9, 0)
+                worksheet.merge_range(data_rows, 10, data_rows, 11, 0)
+                worksheet.write(data_rows, 12, 0)
+                worksheet.write(data_rows, 13, 0)
+                worksheet.write(data_rows, 14, 0)
+                worksheet.write(data_rows, 15, 0)
+                worksheet.write(data_rows, 16, 0)
+
+            data_rows += 1
+            if rec['plan_activity']:
+                for pa in rec['plan_activity']:
+                    if pa.get('start_time'):
+                        worksheet.merge_range(
+                            'A{0}:B{0}'.format(data_rows + 1),
+                            "START: {0}".format(
+                                pa['location_name'] if pa['location_name'] else "Other Location"
+                            ),
+                            merge_format_start_end
+                        )
+                        worksheet.merge_range(
+                            # 'C{0}:J{0}'.format(data_rows + 1),
+                            'C{0}:N{0}'.format(data_rows + 1),
+                            pa['location_address'] if pa['location_address'] else "",
+                            merge_format_start_end
+                        )
+                        worksheet.merge_range(
+                            # 'K{0}:N{0}'.format(data_rows + 1),
+                            'O{0}:Q{0}'.format(data_rows + 1),
+                            "TIME: {0}".format(
+                                datetime.strptime(pa['start_time'], "%Y-%m-%d %H:%M:%S").strftime(
+                                    "%d-%m-%Y %H:%M:%S") if pa['start_time'] else ""
+                            ),
+                            merge_format_start_end
+                        )
+            else:
+                worksheet.merge_range(
+                    'A{0}:B{0}'.format(data_rows + 1),
+                    "START: {0}".format(
+                        rec['start_route_branch']['name'] if rec['start_route_branch'].get('name') else ""
+                    ),
+                    merge_format_start_end
+                )
+                worksheet.merge_range(
+                    # 'C{0}:J{0}'.format(data_rows + 1),
+                    'C{0}:N{0}'.format(data_rows + 1),
+                    rec['start_route_branch']['address'] if rec['start_route_branch'].get('address') else "",
+                    merge_format_start_end
+                )
+                worksheet.merge_range(
+                    # 'K{0}:N{0}'.format(data_rows + 1),
+                    'O{0}:Q{0}'.format(data_rows + 1),
+                    "TIME: ",
+                    merge_format_start_end
+                )
+
+            data_rows += 1
+            if rec['destination'] or rec['destination_new']:
+                # Title
+                worksheet.write('A{0}'.format(data_rows + 1), "Customer Code", merge_format)
+                worksheet.write('B{0}'.format(data_rows + 1), "Customer Name", merge_format)
+                worksheet.merge_range('C{0}:D{0}'.format(data_rows + 1), "Address", merge_format)
+                worksheet.write('E{0}'.format(data_rows + 1), "Phone", merge_format)
+                worksheet.write('F{0}'.format(data_rows + 1), "Contact Name", merge_format)
+                worksheet.write('G{0}'.format(data_rows + 1), "Phone", merge_format)
+                worksheet.write('H{0}'.format(data_rows + 1), "Mobile", merge_format)
+                worksheet.merge_range('I{0}:J{0}'.format(data_rows + 1), "Check IN", merge_format)
+                worksheet.merge_range('K{0}:L{0}'.format(data_rows + 1), "Check OUT", merge_format)
+                worksheet.merge_range('M{0}:N{0}'.format(data_rows + 1), "Summary", merge_format)
+                # custom export
+                worksheet.write('O{0}'.format(data_rows + 1), "Customer Category", single_header_format)
+                worksheet.write('P{0}'.format(data_rows + 1), "Visit Category", single_header_format)
+                worksheet.write('Q{0}'.format(data_rows + 1), "NC", single_header_format)
+                data_rows += 1
+                if rec['destination']:
+                    for data_rec in rec['destination']:
+                        address = []
+                        # Body
+                        worksheet.write('A{0}'.format(data_rows + 1), data_rec['customer_code'])
+                        worksheet.write('B{0}'.format(data_rows + 1), data_rec['customer_name'])
+                        # custom export
+                        worksheet.merge_range('C{0}:E{0}'.format(data_rows + 1), data_rec['address'])
+                        worksheet.write('F{0}'.format(data_rows + 1), data_rec['phone'])
+                        
+                        if data_rec['contacts']:
+                            if (data_rec['contacts'][0]['name']):
+                                contacts_name = (data_rec['contacts'][0]['name'] if data_rec['contacts'][0]['name'] else "")
+                                worksheet.write('F{0}'.format(data_rows + 1), contacts_name)
+                            else:
+                                worksheet.write('F{0}'.format(data_rows + 1), "")
+
+                            if (data_rec['contacts'][0]['phone']):
+                                contacts_phone = (data_rec['contacts'][0]['phone'] if data_rec['contacts'][0]['phone'] else "")
+                                worksheet.write('G{0}'.format(data_rows + 1), contacts_phone)
+                            else:
+                                worksheet.write('G{0}'.format(data_rows + 1), "")
+
+                            if (data_rec['contacts'][0]['mobile']):
+                                contacts_mobile = (data_rec['contacts'][0]['mobile'] if data_rec['contacts'][0]['mobile'] else "")
+                                worksheet.write('H{0}'.format(data_rows + 1), contacts_mobile)
+                            else:
+                                worksheet.write('H{0}'.format(data_rows + 1), "")
+
+
+                        worksheet.write('O{0}'.format(data_rows + 1), data_rec['customer_category'])
+
+                        # address.append(data_rec['address'])
+                        if data_rec['summary']:
+                            if data_rec['summary'].get('notes'):
+                                worksheet.merge_range('M{0}:N{0}'.format(data_rows + 1), data_rec['summary']['notes'])
+                            else:
+                                worksheet.merge_range('M{0}:N{0}'.format(data_rows + 1), "")
+                            # custom export
+                            if data_rec['summary'].get('category_visit'):
+                                worksheet.write('P{0}'.format(data_rows + 1), data_rec['summary']['category_visit'])
+                            else:
+                                worksheet.write('P{0}'.format(data_rows + 1), "")
+                            if data_rec['summary'].get('nc') is not None:
+                                nc = ('Y' if data_rec['summary']['nc'] == 'Y' else "")
+                                worksheet.write('Q{0}'.format(data_rows + 1), nc)
+                            else:
+                                worksheet.write('Q{0}'.format(data_rows + 1), "")
+
+                        else:
+                            worksheet.merge_range('M{0}:N{0}'.format(data_rows + 1), "")
+                        
+                        if rec['plan_activity']:
+                            in_time_list = []
+                            out_time_list = []
+                            for pa in rec['plan_activity']:
+                                if pa['nfc_code'] == data_rec['customer_code']:
+                                    # print(pa)
+                                    if pa['in_time']:
+                                        in_time_list.append(pa['in_time'])
+                                    if pa['out_time']:
+                                        out_time_list.append(pa['out_time'])
+                                    if pa['in_location_custom']:
+                                        address.append(pa['in_location_name'])
+                                    if pa['out_location_custom']:
+                                        address.append(pa['out_location_name'])
+                            worksheet.merge_range('I{0}:J{0}'.format(data_rows + 1),
+                                                  ", ".join([(datetime.strptime(x, "%Y-%m-%d %H:%M:%S").strftime(
+                                                      "%d-%m-%Y %H:%M:%S") if x is not None else "") for x in
+                                                             in_time_list]))
+                            worksheet.merge_range('K{0}:L{0}'.format(data_rows + 1),
+                                                  ", ".join([(datetime.strptime(x, "%Y-%m-%d %H:%M:%S").strftime(
+                                                      "%d-%m-%Y %H:%M:%S") if x is not None else "") for x in
+                                                             out_time_list]))
+                        else:
+                            worksheet.merge_range('I{0}:J{0}'.format(data_rows + 1), "")
+                            worksheet.merge_range('K{0}:L{0}'.format(data_rows + 1), "")
+                        # print(address)
+                        # worksheet.merge_range('E{0}:H{0}'.format(data_rows + 1),
+                        #                       " | ".join([(x if x is not None else "") for x in address]))
+                        data_rows += 1
+
+                if rec['destination_new']:
+                    for data_rec_new in rec['destination_new']:
+                        address_new = []
+                        # # Body
+
+                        worksheet.write('A{0}'.format(data_rows + 1), data_rec_new['customer_code'])
+                        worksheet.write('B{0}'.format(data_rows + 1), data_rec_new['customer_name'])
+                        # custom export
+                        worksheet.merge_range('C{0}:D{0}'.format(data_rows + 1), data_rec_new['address'])
+                        worksheet.write('E{0}'.format(data_rows + 1), data_rec_new['phone'])
+
+                        if data_rec_new['contacts']:
+                            # print("contats data : ", data_rec_new['contacts'])
+                            if (data_rec_new['contacts'][0]['name']):
+                                contacts_name = (data_rec_new['contacts'][0]['name'] if data_rec_new['contacts'][0]['name'] else "")
+                                worksheet.write('F{0}'.format(data_rows + 1), contacts_name)
+                            else:
+                                worksheet.write('F{0}'.format(data_rows + 1), "")
+
+                            if (data_rec_new['contacts'][0]['phone']):
+                                contacts_phone = (data_rec_new['contacts'][0]['phone'] if data_rec_new['contacts'][0]['phone'] else "")
+                                worksheet.write('G{0}'.format(data_rows + 1), contacts_phone)
+                            else:
+                                worksheet.write('G{0}'.format(data_rows + 1), "")
+
+                            if (data_rec_new['contacts'][0]['mobile']):
+                                contacts_mobile = (data_rec_new['contacts'][0]['mobile'] if data_rec_new['contacts'][0]['mobile'] else "")
+                                worksheet.write('H{0}'.format(data_rows + 1), contacts_mobile)
+                            else:
+                                worksheet.write('H{0}'.format(data_rows + 1), "")
+
+                        worksheet.write('O{0}'.format(data_rows + 1), data_rec_new['customer_category'])
+                        # address_new.append(data_rec_new['address'])
+                        if data_rec_new['summary']:
+                            if data_rec_new['summary'].get('notes'):
+                                worksheet.merge_range('M{0}:N{0}'.format(data_rows + 1),
+                                                      data_rec_new['summary']['notes'])
+                            else:
+                                worksheet.merge_range('M{0}:N{0}'.format(data_rows + 1), "")
+
+                            # custom export
+                            if data_rec_new['summary'].get('category_visit'):
+                                worksheet.write('P{0}'.format(data_rows + 1), data_rec_new['summary']['category_visit'])
+                            else:
+                                worksheet.write('P{0}'.format(data_rows + 1), "")
+                            if data_rec_new['summary'].get('nc') is not None:
+                                nc = ('Y' if data_rec_new['summary']['nc'] == 'Y' else "")
+                                worksheet.write('Q{0}'.format(data_rows + 1), nc)
+                            else:
+                                worksheet.write('Q{0}'.format(data_rows + 1), "")
+                        else:
+                            worksheet.merge_range('M{0}:N{0}'.format(data_rows + 1), "")
+
+
+                        if rec['plan_activity']:
+                            in_time_list = []
+                            out_time_list = []
+                            for pa_new in rec['plan_activity']:
+                                if pa_new['nfc_code'] == data_rec_new['customer_code']:
+                                    # print("DEBUG LOC")
+                                    # print(pa_new)
+                                    if pa_new['in_time']:
+                                        in_time_list.append(pa_new['in_time'])
+                                    if pa_new['out_time']:
+                                        out_time_list.append(pa_new['out_time'])
+                                    if pa_new['in_location_custom']:
+                                        address_new.append(pa_new['in_location_address'])
+                                    if pa_new['out_location_custom']:
+                                        address_new.append(pa_new['out_location_address'])
+                            worksheet.merge_range('I{0}:J{0}'.format(data_rows + 1),
+                                                  ", ".join([(datetime.strptime(x, "%Y-%m-%d %H:%M:%S").strftime(
+                                                      "%d-%m-%Y %H:%M:%S") if x is not None else "") for x in
+                                                             in_time_list]))
+                            worksheet.merge_range('K{0}:L{0}'.format(data_rows + 1),
+                                                  ", ".join([(datetime.strptime(x, "%Y-%m-%d %H:%M:%S").strftime(
+                                                      "%d-%m-%Y %H:%M:%S") if x is not None else "") for x in
+                                                             out_time_list]))
+                        else:
+                            worksheet.merge_range('I{0}:J{0}'.format(data_rows + 1), "")
+                            worksheet.merge_range('K{0}:L{0}'.format(data_rows + 1), "")
+
+                        data_rows += 1
+
+            if rec['plan_activity']:
+                for pa in rec['plan_activity']:
+                    if pa.get('stop_time'):
+                        worksheet.merge_range(
+                            'A{0}:B{0}'.format(data_rows + 1),
+                            "END: {0}".format(
+                                pa['location_name'] if pa['location_name'] else "Other Location"
+                            ),
+                            merge_format_start_end
+                        )
+                        worksheet.merge_range(
+                            # 'C{0}:J{0}'.format(data_rows + 1),
+                            'C{0}:N{0}'.format(data_rows + 1),
+                            pa['location_address'] if pa['location_address'] else "",
+                            merge_format_start_end
+                        )
+                        worksheet.merge_range(
+                            # 'K{0}:N{0}'.format(data_rows + 1),
+                            'O{0}:Q{0}'.format(data_rows + 1),
+                            "TIME: {0}".format(
+                                datetime.strptime(pa['stop_time'], "%Y-%m-%d %H:%M:%S").strftime("%d-%m-%Y %H:%M:%S") if
+                                pa['stop_time'] else ""
+                            ),
+                            merge_format_start_end
+                        )
+            else:
+                worksheet.merge_range(
+                    'A{0}:B{0}'.format(data_rows + 1),
+                    "END: {0}".format(
+                        rec['end_route_branch']['name'] if rec['end_route_branch'].get('name') else ""
+                    ),
+                    merge_format_start_end
+                )
+                worksheet.merge_range(
+                    # 'C{0}:J{0}'.format(data_rows + 1),
+                    'C{0}:N{0}'.format(data_rows + 1),
+                    rec['end_route_branch']['address'] if rec['end_route_branch'].get('address') else "",
+                    merge_format_start_end
+                )
+                worksheet.merge_range(
+                    # 'K{0}:N{0}'.format(data_rows + 1),
+                    'O{0}:Q{0}'.format(data_rows + 1),
+                    "TIME: ",
+                    merge_format_start_end
+                )
+            data_rows += 1
+        workbook.close()
+        output.seek(0)
+
+        result_data['data'] = data
+        result_data['file'] = output
+
+        return result_data
+    # 
+
     def get_all_export_pdf_activity_data_by_visit_plan(
             self, page: int, limit: int, search: str, column: str, direction: str,
             branch_privilege: list, division_privilege: list, data_filter: list
@@ -3049,6 +4869,911 @@ class SalesActivityController(object):
 
         return result_data
 
+    # custom collector
+    def get_all_export_pdf_activity_data_by_visit_plan_collector(
+        self, page: int, limit: int, search: str, column: str, direction: str,
+        branch_privilege: list, division_privilege: list, data_filter: list
+    ):
+        result_data = {}
+        cycle = {}
+        data = []
+        start = page * limit - limit
+        order = ''
+        where = """WHERE (vp.is_approval = 1 AND vp.is_deleted = 0) 
+        AND (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
+            ", ".join(str(x) for x in branch_privilege), 4)
+        where_original = where
+        if column:
+            if column == 'start_branch':
+                order = """ORDER BY b1.name {0}""".format(direction)
+            elif column == 'end_branch':
+                order = """ORDER BY b2.name {0}""".format(direction)
+            elif column == 'username':
+                order = """ORDER BY u.username {0}""".format(direction)
+            elif column == 'user':
+                order = """ORDER BY e.name {0}""".format(direction)
+            elif column == 'branch':
+                order = """ORDER BY br.name {0}""".format(direction)
+            elif column == 'division':
+                order = """ORDER BY dv.division_name {0}""".format(direction)
+            elif column == 'date':
+                order = """ORDER BY vp.{0} {1}, vp.create_date {1}""".format(column, direction)
+            else:
+                order = """ORDER BY vp.{0} {1}""".format(column, direction)
+        select = "vp.*"
+        select_count = "vp.id"
+        join = """as vp LEFT JOIN `users` as u ON vp.user_id = u.id 
+        LEFT JOIN `employee` as e ON u.employee_id = e.id
+        LEFT JOIN `branches` as br ON u.branch_id = br.id
+        LEFT JOIN `divisions` as dv ON u.division_id = dv.id
+        LEFT JOIN `branches` as b1 ON vp.start_route_branch_id = b1.id
+        LEFT JOIN `branches` as b2 ON vp.end_route_branch_id = b2.id"""
+        if search:
+            where += """AND (u.username LIKE '%{0}%' OR br.name LIKE '%{0}%' OR dv.division_name LIKE '%{0}%' 
+            OR b1.name LIKE '%{0}%' OR b2.name LIKE '%{0}%' OR e.name LIKE '%{0}%') """.format(search)
+        if data_filter:
+            tmp_data_filter = data_filter[0]
+            if tmp_data_filter['start_date']:
+                where += """AND (vp.date >= '{0} 00:00:00' AND vp.date <= '{1} 23:59:59') """.format(
+                    tmp_data_filter['start_date'], tmp_data_filter['end_date']
+                )
+            if tmp_data_filter['user_id']:
+                where += """AND u.id IN ({0}) """.format(", ".join(str(x) for x in tmp_data_filter['user_id']))
+            if tmp_data_filter['branch_id']:
+                where += """AND u.branch_id IN ({0}) """.format(", ".join(str(x) for x in tmp_data_filter['branch_id']))
+            if tmp_data_filter['division_id']:
+                where += """AND u.division_id IN ({0}) """.format(
+                    ", ".join(str(x) for x in tmp_data_filter['division_id']))
+
+        visit_plan_data = self.visit_plan_model.get_all_visit_plan(
+            self.cursor, select=select, join=join, where=where, order=order, start=start, limit=limit
+        )
+        if visit_plan_data:
+            for vp in visit_plan_data:
+                list_customer = []
+                if vp['edit_data'] is not None:
+                    vp['edit_data'] = json.loads(vp['edit_data'])
+                if vp['date'] is not None:
+                    vp['date'] = str(vp['date'])
+                if vp['create_date'] is not None:
+                    vp['create_date'] = str(vp['create_date'])
+                if vp['update_date'] is not None:
+                    vp['update_date'] = str(vp['update_date'])
+
+                data_activity_dict = dict()
+                data_activity = []
+                list_nfc_code = []
+
+                plan_activity = []
+                try:
+                    where = """ WHERE (
+                            sa.id IN (SELECT MIN(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'START' GROUP BY user_id, visit_plan_id, nfc_code) OR
+                            sa.id IN (SELECT MAX(id) FROM `sales_activity` WHERE `tap_nfc_type` = 'STOP' GROUP BY user_id, visit_plan_id, nfc_code) OR
+                            sa.id IN (SELECT id FROM `sales_activity` WHERE `tap_nfc_type` = 'IN' ) OR
+                            sa.id IN (SELECT id FROM `sales_activity` WHERE `tap_nfc_type` = 'OUT')
+                        ) AND (visit_plan_id = {0}) """.format(vp['id'])
+                    order = ""
+                    select = "sa.*"
+                    join = """AS sa"""
+                    activity_data = self.sales_activity_model.get_all_activity(
+                        self.cursor, select=select, join=join, where=where, order=order, start=0, limit=1000
+                    )
+
+                    if activity_data:
+                        for ad in activity_data:
+                            if ad['tap_nfc_date'] is not None:
+                                ad['tap_nfc_date'] = str(ad['tap_nfc_date'])
+                            if ad['create_date'] is not None:
+                                ad['create_date'] = str(ad['create_date'])
+                            if ad['update_date'] is not None:
+                                ad['update_date'] = str(ad['update_date'])
+
+                            ad['branch_name'] = None
+                            ad['branch_location'] = None
+                            if ad['tap_nfc_type'] == 'START' or ad['tap_nfc_type'] == 'STOP':
+                                if ad['nfc_code'] is not None:
+                                    try:
+                                        branch = self.branch_model.get_branches_by_id(self.cursor, ad['nfc_code'])[0]
+                                        ad['branch_name'] = branch['name']
+                                        ad['branch_location'] = branch['address']
+                                    except:
+                                        ad['branch_name'] = None
+                                        ad['branch_location'] = None
+                                if ad['route_breadcrumb'] is not None:
+                                    ad['route_breadcrumb'] = json.loads(ad['route_breadcrumb'])
+
+                            ad['customer_code'] = None
+                            ad['customer_name'] = None
+                            ad['customer_address'] = None
+                            if ad['tap_nfc_type'] == 'IN' or ad['tap_nfc_type'] == 'OUT':
+                                if ad['nfc_code'] is not None:
+                                    ad['customer_code'] = ad['nfc_code']
+                                    try:
+                                        customer = self.customer_model.get_customer_by_code(self.cursor, ad['nfc_code'])[0]
+                                        ad['customer_name'] = customer['name']
+                                        ad['customer_address'] = customer['address']
+                                    except:
+                                        ad['customer_name'] = None
+                                        ad['customer_address'] = None
+                                if ad['route_breadcrumb'] is not None:
+                                    ad['route_breadcrumb'] = json.loads(ad['route_breadcrumb'])
+
+                            if ad['user_id'] is not None:
+                                try:
+                                    ad['user'] = self.user_model.get_user_by_id(
+                                        self.cursor, ad['user_id'],
+                                        select="username, employee_id, branch_id, division_id"
+                                    )[0]
+                                    if ad['user']['employee_id'] is not None:
+                                        try:
+                                            ad['user']['name'] = self.employee_model.get_employee_by_id(
+                                                self.cursor,
+                                                ad['user']['employee_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['name'] = None
+                                    if ad['user']['branch_id'] is not None:
+                                        try:
+                                            ad['user']['branch_name'] = self.branch_model.get_branches_by_id(
+                                                self.cursor,
+                                                ad['user']['branch_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['branch_name'] = None
+                                    if ad['user']['division_id'] is not None:
+                                        try:
+                                            ad['user']['division_name'] = self.division_model.get_division_by_id(
+                                                self.cursor, ad['user']['division_id'], select="division_name")[0][
+                                                'division_name']
+                                        except:
+                                            ad['user']['division_name'] = None
+                                except:
+                                    ad['user'] = {}
+                            else:
+                                ad['user'] = {}
+
+                            plan_activity.append(ad)
+
+                    if plan_activity:
+                        plan_activity_list = []
+                        for rec in plan_activity:
+                            plan_activity_dict = dict()
+                            # print("======== Plan Activity {0}".format(rec))
+                            if rec['tap_nfc_type'] == 'START':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['distance'] = 0
+                                plan_activity_dict['start_time'] = rec['tap_nfc_date']
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['start_location_custom'] = False
+                                    plan_activity_dict['start_location_name'] = rec['branch_name']
+                                    plan_activity_dict['start_location_address'] = rec['branch_location']
+                                else:
+                                    # custom start
+                                    plan_activity_dict['start_location_custom'] = True
+                                    plan_activity_dict['start_location_name'] = None
+                                    plan_activity_dict['start_location_address'] = rec['route_breadcrumb']['address']
+                                plan_activity_dict['start_location'] = rec['route_breadcrumb']
+
+                            if rec['tap_nfc_type'] == 'STOP':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['distance'] = 0
+                                plan_activity_dict['stop_time'] = rec['tap_nfc_date']
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['stop_location_custom'] = False
+                                    plan_activity_dict['stop_location_name'] = rec['branch_name']
+                                    plan_activity_dict['stop_location_address'] = rec['branch_location']
+                                else:
+                                    # custom stop
+                                    plan_activity_dict['stop_location_custom'] = True
+                                    plan_activity_dict['stop_location_name'] = None
+                                    plan_activity_dict['stop_location_address'] = rec['route_breadcrumb']['address']
+                                plan_activity_dict['stop_location'] = rec['route_breadcrumb']
+
+                            if rec['tap_nfc_type'] == 'IN':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['distance'] = rec['distance']
+                                plan_activity_dict['in_time'] = rec['tap_nfc_date']
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['in_location_custom'] = False
+                                    plan_activity_dict['in_location_name'] = rec['customer_name']
+                                    plan_activity_dict['in_location_address'] = rec['customer_address']
+                                else:
+                                    # custom checkin
+                                    plan_activity_dict['in_location_custom'] = True
+                                    plan_activity_dict['in_location_name'] = rec['customer_name']
+                                    plan_activity_dict['in_location_address'] = rec['route_breadcrumb']['address']
+
+                            if rec['tap_nfc_type'] == 'OUT':
+                                plan_activity_dict['tap_nfc_type'] = rec['tap_nfc_type']
+                                plan_activity_dict['nfc_code'] = rec['nfc_code']
+                                plan_activity_dict['out_time'] = rec['tap_nfc_date']
+
+                                if rec['route_breadcrumb'] is None:
+                                    plan_activity_dict['out_location_custom'] = False
+                                    plan_activity_dict['out_location_name'] = rec['customer_name']
+                                    plan_activity_dict['out_location_address'] = rec['customer_address']
+                                else:
+                                    # custom checkout
+                                    plan_activity_dict['out_location_custom'] = True
+                                    plan_activity_dict['out_location_name'] = rec['customer_name']
+                                    plan_activity_dict['out_location_address'] = rec['route_breadcrumb']['address']
+
+                            plan_activity_list.append(plan_activity_dict)
+                        plan_result = []
+                        i = 0
+                        for plan in plan_activity_list:
+                            data_dict = dict()
+                            if plan.get('start_time'):
+                                data_dict['nfc_code'] = plan['nfc_code']
+                                data_dict['start_time'] = plan['start_time']
+                                data_dict['location_name'] = plan['start_location_name']
+                                data_dict['location_address'] = plan['start_location_address']
+                                data_dict['location_custom'] = plan['start_location_custom']
+                                data_dict['distance'] = plan['distance']
+                                data_dict['duration'] = 0
+
+                            if plan.get('in_time'):
+                                code = plan['nfc_code']
+                                data_dict['nfc_code'] = code
+                                data_dict['in_time'] = plan['in_time']
+                                data_dict['distance'] = plan['distance']
+                                data_dict['in_location_address'] = plan['in_location_address']
+                                data_dict['in_location_name'] = plan['in_location_name']
+                                data_dict['in_location_custom'] = plan['in_location_custom']
+                                next_idx = i
+                                next = next_idx + 1
+                                if plan_activity_list[next]['nfc_code'] == code and plan_activity_list[next][
+                                    'tap_nfc_type'] == 'OUT':
+                                    # Tap Type STOP found
+                                    data_dict['out_time'] = plan_activity_list[next]['out_time']
+                                    data_dict['out_location_address'] = plan_activity_list[next]['out_location_address']
+                                    data_dict['out_location_name'] = plan_activity_list[next]['out_location_name']
+                                    data_dict['out_location_custom'] = plan_activity_list[next]['out_location_custom']
+
+                                    # calculate duration
+                                    out_time = datetime.strptime(data_dict['out_time'], "%Y-%m-%d %H:%M:%S")
+                                    in_time = datetime.strptime(data_dict['in_time'], "%Y-%m-%d %H:%M:%S")
+                                    if out_time > in_time:
+                                        data_dict['duration'] = int((out_time - in_time).seconds / 60)
+                                    else:
+                                        data_dict['duration'] = 0
+                                else:
+                                    data_dict['out_time'] = None
+                                    data_dict['out_location_address'] = None
+                                    data_dict['out_location_name'] = None
+                                    data_dict['out_location_custom'] = False
+                                    data_dict['duration'] = 0
+
+                            if plan.get('stop_time'):
+                                data_dict['nfc_code'] = plan['nfc_code']
+                                data_dict['stop_time'] = plan['stop_time']
+                                data_dict['location_name'] = plan['stop_location_name']
+                                data_dict['location_address'] = plan['stop_location_address']
+                                data_dict['location_custom'] = plan['stop_location_custom']
+                                data_dict['distance'] = plan['distance']
+                                data_dict['duration'] = 0
+
+                            if data_dict:
+                                plan_result.append(data_dict)
+                            i += 1
+
+                        position = 0
+                        if plan_result:
+                            for plan in plan_result:
+                                plan['order'] = position
+                                if plan.get('start_time') and position == 0:
+                                    plan['time_range'] = 0
+                                else:
+                                    if plan.get('in_time'):
+                                        next_time = plan['in_time']
+                                    elif plan.get('stop_time'):
+                                        next_time = plan['stop_time']
+                                    else:
+                                        next_time = 0
+
+                                    post = position
+                                    index = post - 1
+                                    if index >= 0:
+                                        if plan_result[index].get('start_time'):
+                                            prev_time = plan_result[index]['start_time']
+                                        elif plan_result[index].get('out_time'):
+                                            prev_time = plan_result[index]['out_time']
+                                        else:
+                                            prev_time = 0
+                                    else:
+                                        prev_time = 0
+
+                                    if prev_time and next_time:
+                                        prev_time_fmt = datetime.strptime(prev_time, "%Y-%m-%d %H:%M:%S")
+                                        next_time_fmt = datetime.strptime(next_time, "%Y-%m-%d %H:%M:%S")
+                                        if next_time_fmt > prev_time_fmt:
+                                            plan['time_range'] = int((next_time_fmt - prev_time_fmt).seconds / 60)
+                                        else:
+                                            plan['time_range'] = 0
+                                    else:
+                                        plan['time_range'] = 0
+                                position += 1
+                            
+                        vp['plan_activity'] = plan_result
+                    else:
+                        vp['plan_activity'] = []
+
+                    if activity_data:
+                        for ad in activity_data:
+                            if ad['tap_nfc_date'] is not None:
+                                ad['tap_nfc_date'] = str(ad['tap_nfc_date'])
+                            if ad['create_date'] is not None:
+                                ad['create_date'] = str(ad['create_date'])
+                            if ad['update_date'] is not None:
+                                ad['update_date'] = str(ad['update_date'])
+                            ad['branch_name'] = None
+                            if ad['tap_nfc_type'] == 'START' or ad['tap_nfc_type'] == 'STOP':
+                                if ad['nfc_code'] is not None:
+                                    try:
+                                        ad['branch_name'] = self.branch_model.get_branches_by_id(
+                                            self.cursor, ad['nfc_code'], select="""name"""
+                                        )[0]['name']
+                                    except:
+                                        ad['branch_name'] = None
+                                if ad['route_breadcrumb'] is not None:
+                                    ad['route_breadcrumb'] = json.loads(json.dumps(ad['route_breadcrumb']))
+                            ad['customer_code'] = None
+                            if ad['tap_nfc_type'] == 'IN' or ad['tap_nfc_type'] == 'OUT':
+                                if ad['nfc_code'] is not None:
+                                    ad['customer_code'] = ad['nfc_code']
+                            if ad['user_id'] is not None:
+                                try:
+                                    ad['user'] = self.user_model.get_user_by_id(
+                                        self.cursor, ad['user_id'],
+                                        select="username, employee_id, branch_id, division_id"
+                                    )[0]
+                                    if ad['user']['employee_id'] is not None:
+                                        try:
+                                            ad['user']['name'] = self.employee_model.get_employee_by_id(
+                                                self.cursor,
+                                                ad['user']['employee_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['name'] = None
+                                    if ad['user']['branch_id'] is not None:
+                                        try:
+                                            ad['user']['branch_name'] = self.branch_model.get_branches_by_id(
+                                                self.cursor,
+                                                ad['user']['branch_id'],
+                                                select="""name""")[0]['name']
+                                        except:
+                                            ad['user']['branch_name'] = None
+                                    if ad['user']['division_id'] is not None:
+                                        try:
+                                            ad['user']['division_name'] = self.division_model.get_division_by_id(
+                                                self.cursor, ad['user']['division_id'], select="division_name")[0][
+                                                'division_name']
+                                        except:
+                                            ad['user']['division_name'] = None
+                                except:
+                                    ad['user'] = {}
+                            else:
+                                ad['user'] = {}
+                            if ad['nfc_code'] is not None:
+                                data_activity_dict[ad['nfc_code']] = dict()
+                                list_nfc_code.append(ad['nfc_code'])
+                            data_activity.append(ad)
+                    if data_activity:
+                        for rec in data_activity:
+                            if rec['tap_nfc_type'] == 'START':
+                                data_activity_dict[rec['nfc_code']]['start_time'] = rec['tap_nfc_date']
+                                data_activity_dict[rec['nfc_code']]['distance'] = 0
+                            if rec['tap_nfc_type'] == 'STOP':
+                                data_activity_dict[rec['nfc_code']]['stop_time'] = rec['tap_nfc_date']
+                                data_activity_dict[rec['nfc_code']]['distance'] = 0
+                            if rec['tap_nfc_type'] == 'IN':
+                                data_activity_dict[rec['nfc_code']]['in_time'] = rec['tap_nfc_date']
+                                data_activity_dict[rec['nfc_code']]['distance'] = rec['distance']
+                            if rec['tap_nfc_type'] == 'OUT':
+                                data_activity_dict[rec['nfc_code']]['out_time'] = rec['tap_nfc_date']
+
+                        # Calculation duration
+                        unique_code = set(list_nfc_code)
+                        for code in unique_code:
+                            if data_activity_dict[code].get('in_time'):
+                                in_time = data_activity_dict[code]['in_time']
+                            else:
+                                in_time = 0
+                            if data_activity_dict[code].get('out_time'):
+                                out_time = data_activity_dict[code]['out_time']
+                            else:
+                                out_time = 0
+                            if in_time and out_time:
+                                out_time_fmt = datetime.strptime(out_time, "%Y-%m-%d %H:%M:%S")
+                                in_time_fmt = datetime.strptime(in_time, "%Y-%m-%d %H:%M:%S")
+                                data_activity_dict[code]['duration'] = int((out_time_fmt - in_time_fmt).seconds / 60)
+                            else:
+                                data_activity_dict[code]['duration'] = 0
+
+                    vp['data_activity'] = data_activity_dict
+                except Exception as e:
+                    exc_type, exc_obj, exc_tb = sys.exc_info()
+                    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                    print("Kesalahan {}".format(e), exc_type, fname, exc_tb.tb_lineno)
+                    vp['data_activity'] = dict()
+                    vp['plan_activity'] = []
+
+                # Get Data Performance
+                try:
+                    performance_date = vp['date'].split(" ")
+                    performance_date = performance_date[0]
+                    data_performance = self.get_statistic_performance_by_user_id(
+                        job_function='sales', user_ids=[vp['user_id']], start_date=performance_date,
+                        end_date=performance_date, plan_id=vp['id']
+                    )
+
+                    # TODO Get Data Total Distance
+                    select = "*"
+                    where_distance = """WHERE user_id={0} AND tap_nfc_type='STOP' """.format(vp['user_id'])
+                    where_distance += """AND visit_plan_id={} """.format(vp['id'])
+                    where_distance += """AND (tap_nfc_date >= '{0} 00:00:00' AND tap_nfc_date <= '{1} 23:59:59') """.format(
+                        performance_date, performance_date)
+                    order = 'ORDER BY create_date ASC'
+                    data_distance = self.sales_activity_model.get_all_activity(self.cursor, select=select,
+                                                                               where=where_distance, order=order)
+                    total_distance = 0
+                    if data_distance:
+                        for rec_distance in data_distance:
+                            total_distance += rec_distance['total_distance']
+                    data_performance['total_distance'] = total_distance
+
+                    vp['data_performance'] = data_performance
+                except Exception as e:
+                    print(e)
+                    vp['data_performance'] = dict()
+                if vp['destination_order'] is not None:
+                    vp['destination_order'] = json.loads(vp['destination_order'])
+                if vp['destination'] is not None:
+                    vp['destination'] = json.loads(vp['destination'])
+                    idx = 0
+                    for rec in vp['destination']:
+                        try:
+                            customer = self.customer_model.get_customer_by_id(
+                                self.cursor, rec['customer_code'],
+                                select="name, email, phone, address, lng, lat, nfcid, contacts, business_activity, category")[0]
+                            vp['destination'][idx]['customer_name'] = customer['name']
+                            vp['destination'][idx]['customer_email'] = customer['email']
+                            vp['destination'][idx]['phone'] = customer['phone']
+                            vp['destination'][idx]['address'] = customer['address']
+                            vp['destination'][idx]['lng'] = customer['lng']
+                            vp['destination'][idx]['lat'] = customer['lat']
+                            vp['destination'][idx]['nfcid'] = customer['nfcid']
+                            vp['destination'][idx]['customer_category'] = customer['category']
+                            
+                            if customer['contacts'] is not None:
+                                vp['destination'][idx]['contacts'] = json.loads(customer['contacts'])
+                            else:
+                                vp['destination'][idx]['contacts'] = None
+                            if customer['business_activity'] is not None:
+                                vp['destination'][idx]['business_activity'] = json.loads(customer['business_activity'])
+                            else:
+                                vp['destination'][idx]['business_activity'] = None
+                            try:
+                                summary = self.visit_plan_summary_model.get_visit_plan_summary_by_plan_id_customer_code(
+                                    self.cursor, vp['id'], rec['customer_code']
+                                )
+                                if len(summary) == 0:
+                                    vp['destination'][idx]['summary'] = None
+                                else:
+                                    summary = summary[0]
+                                    del summary['visit_images']
+                                    del summary['competitor_images']
+                                    if summary['create_date'] is not None:
+                                        summary['create_date'] = str(summary['create_date'])
+                                    if summary['update_date'] is not None:
+                                        summary['update_date'] = str(summary['update_date'])
+                                    vp['destination'][idx]['summary'] = summary
+                            except:
+                                vp['destination'][idx]['summary'] = None
+                        except:
+                            vp['destination'][idx]['customer_name'] = None
+                            vp['destination'][idx]['customer_email'] = None
+                            vp['destination'][idx]['phone'] = None
+                            vp['destination'][idx]['address'] = None
+                            vp['destination'][idx]['lng'] = None
+                            vp['destination'][idx]['lat'] = None
+                            vp['destination'][idx]['nfcid'] = None
+                            vp['destination'][idx]['contacts'] = None
+                            vp['destination'][idx]['business_activity'] = None
+                            vp['destination'][idx]['summary'] = None
+                            vp['destination'][idx]['customer_category'] = None
+                        list_customer.append(rec['customer_code'])
+                        idx += 1
+                if vp['destination_new'] is not None:
+                    vp['destination_new'] = json.loads(vp['destination_new'])
+                    idx = 0
+                    for rec_new in vp['destination_new']:
+                        try:
+                            customer = self.customer_model.get_customer_by_id(
+                                self.cursor, rec_new['customer_code'],
+                                select="name, email, phone, address, lng, lat, nfcid, contacts, business_activity, category")[0]
+                            vp['destination_new'][idx]['customer_name'] = customer['name']
+                            vp['destination_new'][idx]['customer_email'] = customer['email']
+                            vp['destination_new'][idx]['phone'] = customer['phone']
+                            vp['destination_new'][idx]['address'] = customer['address']
+                            vp['destination_new'][idx]['lng'] = customer['lng']
+                            vp['destination_new'][idx]['lat'] = customer['lat']
+                            vp['destination_new'][idx]['nfcid'] = customer['nfcid']
+                            vp['destination_new'][idx]['customer_category'] = customer['category']
+                            
+                            if customer['contacts'] is not None:
+                                vp['destination_new'][idx]['contacts'] = json.loads(customer['contacts'])
+                            else:
+                                vp['destination_new'][idx]['contacts'] = None
+                            if customer['business_activity'] is not None:
+                                vp['destination_new'][idx]['business_activity'] = json.loads(
+                                    customer['business_activity'])
+                            else:
+                                vp['destination_new'][idx]['business_activity'] = None
+                            try:
+                                summary = self.visit_plan_summary_model.get_visit_plan_summary_by_plan_id_customer_code(
+                                    self.cursor, vp['id'], rec_new['customer_code']
+                                )
+                                if len(summary) == 0:
+                                    vp['destination_new'][idx]['summary'] = None
+                                else:
+                                    summary = summary[0]
+                                    del summary['visit_images']
+                                    del summary['competitor_images']
+                                    if summary['create_date'] is not None:
+                                        summary['create_date'] = str(summary['create_date'])
+                                    if summary['update_date'] is not None:
+                                        summary['update_date'] = str(summary['update_date'])
+                                    vp['destination_new'][idx]['summary'] = summary
+                            except:
+                                vp['destination_new'][idx]['summary'] = None
+                        except:
+                            vp['destination_new'][idx]['customer_name'] = None
+                            vp['destination_new'][idx]['customer_email'] = None
+                            vp['destination_new'][idx]['phone'] = None
+                            vp['destination_new'][idx]['address'] = None
+                            vp['destination_new'][idx]['lng'] = None
+                            vp['destination_new'][idx]['lat'] = None
+                            vp['destination_new'][idx]['nfcid'] = None
+                            vp['destination_new'][idx]['contacts'] = None
+                            vp['destination_new'][idx]['business_activity'] = None
+                            vp['destination_new'][idx]['summary'] = None
+                            vp['destination_new'][idx]['customer_category'] = None
+                        list_customer.append(rec_new['customer_code'])
+                        idx += 1
+                # vc['customer'] = list_customer
+                vp['total_customer'] = len(set(list_customer))
+                if vp['user_id'] is not None:
+                    try:
+                        vp['user'] = self.user_model.get_user_by_id(
+                            self.cursor, vp['user_id'], select="username, employee_id, branch_id, division_id")[0]
+                    except:
+                        vp['user'] = {}
+                    if vp['user']['employee_id'] is not None:
+                        try:
+                            vp['user']['name'] = self.employee_model.get_employee_by_id(
+                                self.cursor, vp['user']['employee_id'], select="""name""")[0]['name']
+                        except:
+                            vp['user']['name'] = None
+                    if vp['user']['branch_id'] is not None:
+                        try:
+                            vp['user']['branch_name'] = self.branch_model.get_branches_by_id(
+                                self.cursor, vp['user']['branch_id'], select="""name""")[0]['name']
+                        except:
+                            vp['user']['branch_name'] = None
+                    if vp['user']['division_id'] is not None:
+                        try:
+                            vp['user']['division_name'] = self.division_model.get_division_by_id(
+                                self.cursor, vp['user']['division_id'], select="division_name")[0][
+                                'division_name']
+                        except:
+                            vp['user']['division_name'] = None
+                    else:
+                        vp['user']['division_name'] = None
+                else:
+                    vp['user'] = {}
+                if vp['start_route_branch_id'] is not None:
+                    try:
+                        vp['start_route_branch'] = self.branch_model.get_branches_by_id(
+                            self.cursor, vp['start_route_branch_id'], select="name, phone, address, email, lng, lat")[0]
+                    except:
+                        vp['start_route_branch'] = {}
+                else:
+                    vp['start_route_branch'] = {}
+                if vp['end_route_branch_id'] is not None:
+                    try:
+                        vp['end_route_branch'] = self.branch_model.get_branches_by_id(
+                            self.cursor, vp['start_route_branch_id'], select="name, phone, address, email, lng, lat")[0]
+                    except:
+                        vp['end_route_branch'] = {}
+                else:
+                    vp['end_route_branch'] = {}
+                del vp['route']
+
+                data.append(vp)
+        # output = BytesIO()
+        # Header sheet
+        if data_filter:
+            data_filter = data_filter[0]
+            if data_filter['start_date'] and not data_filter['user_id']:
+                head_title = 'VISIT PLAN (USER: ALL, TANGGAL: {0} s/d {1})'.format(
+                    datetime.strptime(data_filter['start_date'], "%Y-%m-%d").strftime("%d-%m-%Y"),
+                    datetime.strptime(data_filter['end_date'], "%Y-%m-%d").strftime("%d-%m-%Y")
+                )
+            elif data_filter['user_id'] and not data_filter['start_date']:
+                head_title = 'VISIT PLAN (USER: {0}, TANGGAL: ALL)'.format(
+                    ", ".join(x for x in data_filter['username'])
+                )
+            else:
+                head_title = 'VISIT PLAN (USER: {0}, TANGGAL: {1} s/d {2})'.format(
+                    ", ".join(x for x in data_filter['username']),
+                    datetime.strptime(data_filter['start_date'], "%Y-%m-%d").strftime("%d-%m-%Y"),
+                    datetime.strptime(data_filter['end_date'], "%Y-%m-%d").strftime("%d-%m-%Y")
+                )
+        else:
+            head_title = 'VISIT PLAN (USER: ALL, TANGGAL: ALL)'
+
+        body_table = []
+        for rec in data:
+            data_body = OrderedDict()
+            data_body['tanggal'] = datetime.strptime(rec['date'], "%Y-%m-%d %H:%M:%S").strftime("%d-%m-%Y")
+            data_body['sales'] = rec['user']['name']
+            data_body['branch'] = rec['user']['branch_name']
+            data_body['division'] = rec['user']['division_name']
+            if len(rec['data_performance']) != 0:
+                data_body['break_time'] = rec['data_performance']['break_time']
+                data_body['visited'] = rec['data_performance']['visited']
+                data_body['visit_time'] = rec['data_performance']['visit_time']
+                data_body['driving_time'] = rec['data_performance']['driving_time']
+                data_body['plan'] = rec['data_performance']['plan']
+                data_body['new'] = rec['data_performance']['new']
+                data_body['alert'] = rec['data_performance']['alert']
+                data_body['permission'] = rec['data_performance']['permission']
+                data_body['cancel'] = rec['data_performance']['cancel']
+                # data_body['invoice'] = rec['data_performance']['invoice']
+                
+            else:
+                data_body['break_time'] = 0
+                data_body['visited'] = 0
+                data_body['visit_time'] = 0
+                data_body['driving_time'] = 0
+                data_body['plan'] = 0
+                data_body['new'] = 0
+                data_body['alert'] = 0
+                data_body['permission'] = 0
+                data_body['cancel'] = 0
+                # data_body['invoice'] = 0
+                
+            # Get start time in branch
+            is_start_branch_exist = False
+            if 'plan_activity' in rec:
+                for pa in rec['plan_activity']:
+                    if 'start_time' in pa:
+                        data_body['start_branch'] = {
+                            'code': rec['start_route_branch_id'],
+                            'name': pa['location_name'] if pa['location_name'] else "Other Location",
+                            'address': pa['location_address'] if pa['location_address'] else "",
+                            'in': datetime.strptime(pa['start_time'], "%Y-%m-%d %H:%M:%S").strftime(
+                                "%d-%m-%Y %H:%M:%S") if pa['start_time'] else "",
+                            'out': ""
+                        }
+                        is_start_branch_exist = True
+
+            if is_start_branch_exist is False:
+                data_body['start_branch'] = {
+                    'code': rec['start_route_branch_id'],
+                    'name': rec['start_route_branch']['name'],
+                    'address': rec['start_route_branch']['address'],
+                    'in': "",
+                    'out': ""
+                }
+            # Get stop time in branch
+            is_end_branch_exist = False
+            if rec['plan_activity']:
+                for pa in rec['plan_activity']:
+                    if 'stop_time' in pa:
+                        data_body['end_branch'] = {
+                            'code': rec['end_route_branch_id'],
+                            'name': pa['location_name'] if pa['location_name'] else "Other Location",
+                            'address': pa['location_address'] if pa['location_address'] else "",
+                            'in': "",
+                            'out': datetime.strptime(pa['stop_time'], "%Y-%m-%d %H:%M:%S").strftime(
+                                "%d-%m-%Y %H:%M:%S") if pa['stop_time'] else ""
+                        }
+                        is_end_branch_exist = True
+            if is_end_branch_exist is False:
+                data_body['end_branch'] = {
+                    'code': rec['end_route_branch_id'],
+                    'name': rec['end_route_branch']['name'],
+                    'address': rec['end_route_branch']['address'],
+                    'in': "",
+                    'out': ""
+                }
+
+            data_body['customer'] = []
+
+            if rec['destination']:
+                for data_rec in rec['destination']:
+                    address = []
+                    data_customer_body = OrderedDict()
+                    # Body
+                    data_customer_body['code'] = data_rec['customer_code']
+                    data_customer_body['name'] = data_rec['customer_name']
+
+                    # custom export
+                    if data_rec['phone']:
+                        data_customer_body['phone'] = data_rec['phone']
+                    else:
+                        data_customer_body['phone'] = ""
+
+                    if data_rec['contacts']:
+                        if data_rec['contacts'][0].get('name'):
+                            data_customer_body['contacts_name'] = data_rec['contacts'][0]['name']
+                        else:
+                            data_customer_body['contacts_name'] = ""
+
+                        if data_rec['contacts'][0].get('phone'):
+                            data_customer_body['contacts_phone'] = data_rec['contacts'][0]['phone']
+                        else:
+                            data_customer_body['contacts_phone'] = ""
+
+                        if data_rec['contacts'][0].get('mobile'):
+                            data_customer_body['contacts_mobile'] = data_rec['contacts'][0]['mobile']
+                        else:
+                            data_customer_body['contacts_mobile'] = ""
+
+                    else:
+                        data_customer_body['contacts'] = ""
+
+                    if data_rec['customer_category'] is not None:
+                        data_customer_body['category'] = data_rec['customer_category']
+                    else:
+                        data_customer_body['category'] = ""
+
+                    if data_rec['address'] is not None:
+                        data_customer_body['address'] = data_rec['address']
+                    else:
+                        data_customer_body['address'] = ""
+                    # data_customer_body['category'] = data_rec['customer_category']
+                    address.append(data_rec['address'])
+                    if data_rec['summary']:
+                        if data_rec['summary'].get('notes'):
+                            data_customer_body['summary'] = data_rec['summary']['notes']
+                        else:
+                            data_customer_body['summary'] = ""
+                        # custom export
+                        if data_rec['summary'].get('category_visit'):
+                            data_customer_body['category_visit'] = data_rec['summary']['category_visit']
+                        else:
+                            data_customer_body['category_visit'] = ""
+                        if data_rec['summary'].get('nc') is not None:
+                            data_customer_body['nc'] = ('Y' if data_rec['summary']['nc'] == 'Y' else None)
+                        else:
+                            data_customer_body['nc'] = ""                      
+                    else:
+                        data_customer_body['summary'] = ""
+
+                    in_time_list = []
+                    out_time_list = []
+
+                    if rec['plan_activity']:
+                        for pa in rec['plan_activity']:
+                            if pa['nfc_code'] == data_rec['customer_code']:
+                                if 'in_time' in pa:
+                                    in_time_list.append(pa['in_time'])
+                                if 'out_time' in pa:
+                                    out_time_list.append(pa['out_time'])
+                                if 'in_location_custom' in pa:
+                                    address.append(pa['in_location_name'])
+                                if 'out_location_custom' in pa:
+                                    address.append(pa['out_location_name'])
+
+                    # data_customer_body['address'] = " | ".join([(x if x is not None else "") for x in address])
+                    
+                    data_customer_body['in'] = ", ".join([(datetime.strptime(x, "%Y-%m-%d %H:%M:%S").strftime(
+                        "%d-%m-%Y %H:%M:%S") if x is not None else "") for x in in_time_list])
+                    data_customer_body['out'] = ", ".join([(datetime.strptime(x, "%Y-%m-%d %H:%M:%S").strftime(
+                        "%d-%m-%Y %H:%M:%S") if x is not None else "") for x in out_time_list])
+                    data_body['customer'].append(data_customer_body)
+
+            if rec['destination_new']:
+                for data_rec_new in rec['destination_new']:
+                    address = []
+                    data_customer_body = OrderedDict()
+                    # Body
+                    data_customer_body['code'] = data_rec_new['customer_code']
+                    data_customer_body['name'] = data_rec_new['customer_name']
+                    # custom export
+                    if data_rec_new['phone']:
+                        data_customer_body['phone'] = data_rec_new['phone']
+                    else:
+                        data_customer_body['phone'] = ""
+
+                    if data_rec_new['contacts']:
+                        if data_rec_new['contacts'][0].get('name'):
+                            data_customer_body['contacts_name'] = data_rec_new['contacts'][0]['name']
+                        else:
+                            data_customer_body['contacts_name'] = ""
+
+                        if data_rec_new['contacts'][0].get('phone'):
+                            data_customer_body['contacts_phone'] = data_rec_new['contacts'][0]['phone']
+                        else:
+                            data_customer_body['contacts_phone'] = ""
+
+                        if data_rec_new['contacts'][0].get('mobile'):
+                            data_customer_body['contacts_mobile'] = data_rec_new['contacts'][0]['mobile']
+                        else:
+                            data_customer_body['contacts_mobile'] = ""
+
+                    else:
+                        data_customer_body['contacts'] = None
+
+                    
+                    if data_rec_new['customer_category'] is not None:
+                        data_customer_body['category'] = data_rec_new['customer_category']
+                    else:
+                        data_customer_body['category'] = ""
+
+                    if data_rec_new['address'] is not None:
+                        data_customer_body['address'] = data_rec_new['address']
+                    else:
+                        data_customer_body['address'] = ""
+                    # data_customer_body['category'] = data_rec_new['customer_category']
+                    address.append(data_rec_new['address'])
+                    if data_rec_new['summary']:
+                        if data_rec_new['summary'].get('notes'):
+                            data_customer_body['summary'] = data_rec_new['summary']['notes']
+                        else:
+                            data_customer_body['summary'] = ""
+                        # custom export
+                        if data_rec_new['summary'].get('category_visit'):
+                            data_customer_body['category_visit'] = data_rec_new['summary']['category_visit']
+                        else:
+                            data_customer_body['category_visit'] = None
+                        if data_rec_new['summary'].get('nc') is not None:
+                            data_customer_body['nc'] = ('Y' if data_rec_new['summary']['nc'] == 'Y' else "")
+                        else:
+                            data_customer_body['nc'] = ""
+                    else:
+                        data_customer_body['summary'] = ""
+
+                    in_time_list = []
+                    out_time_list = []
+
+                    if rec['plan_activity']:
+                        for pa in rec['plan_activity']:
+                            if pa['nfc_code'] == data_rec_new['customer_code']:
+                                if 'in_time' in pa:
+                                    in_time_list.append(pa['in_time'])
+                                if 'out_time' in pa:
+                                    out_time_list.append(pa['out_time'])
+                                if 'in_location_custom' in pa:
+                                    address.append(pa['in_location_name'])
+                                if 'out_location_custom' in pa:
+                                    address.append(pa['out_location_name'])
+                    
+                    # data_customer_body['address'] = " | ".join([(x if x is not None else "") for x in address])
+                    data_customer_body['in'] = ", ".join([(datetime.strptime(x, "%Y-%m-%d %H:%M:%S").strftime(
+                        "%d-%m-%Y %H:%M:%S") if x is not None else "") for x in in_time_list])
+                    data_customer_body['out'] = ", ".join([(datetime.strptime(x, "%Y-%m-%d %H:%M:%S").strftime(
+                        "%d-%m-%Y %H:%M:%S") if x is not None else "") for x in out_time_list])
+                    print("out : ", data_customer_body['out'])
+                    data_body['customer'].append(data_customer_body)
+            body_table.append(data_body)
+        
+        rendered = render_template(
+            'report_activity_template.html', head_title=head_title, body_table=body_table, category="sales"
+        )
+        output = pdfkit.from_string(rendered, False)
+
+        result_data['data'] = data
+        result_data['file'] = output
+
+        return result_data
+    # 
 
 
     # def get_all_export_pdf_activity_data_by_visit_plan(

@@ -438,6 +438,56 @@ def get_all_employee_sales():
     return jsonify(response)
 
 
+@bp.route('/employee/collector', methods=["GET"])
+@jwt_required()
+def get_all_employee_collector():
+    """
+    Get List all employee
+    :example:
+        curl -i -x GET
+        -H "Authorization:JWT <token>"
+        "http://localhost:7091/employee"
+    :return:
+        HTTP/1.1 200 OK
+        Content-Type: text/javascript
+        {
+            "error": 0,
+            "message": ""
+            "data": {
+                "has_next":<boolean>,
+                "has_prev":<boolean>,
+                "total":<int>,
+                "data":<list object>
+            }
+        }
+    """
+    employee_controller = EmployeeController()
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+
+    page = int(request.args.get('page'))
+    limit = int(request.args.get('limit'))
+    search = None
+    column = None
+    direction = None
+    if request.args.get('search'):
+        search = request.args.get('search')
+    if request.args.get('order_by_column'):
+        column = request.args.get('order_by_column')
+        direction = request.args.get('order_direction')
+
+    employee = employee_controller.get_all_employee_collector_data(page=page, limit=limit, search=search,
+                                                               column=column, direction=direction)
+
+    response['error'] = 0
+    response['data'] = employee
+
+    return jsonify(response)    
+
+
 @bp.route('/employee/supervisor', methods=["GET"])
 @jwt_required()
 def get_all_employee_supervisor():

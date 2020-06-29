@@ -456,10 +456,7 @@ def get_all_user_approval():
 @bp.route('/user/sales', methods=["GET"])
 @jwt_required()
 def user_sales_all_list():
-    """
-
-    :return:
-    """
+    # user sales = All - (collector + logistic)
     user_controller = UserController()
     branch_privilege = current_identity.branch_privilege
     division_privilege = current_identity.division_privilege
@@ -494,11 +491,47 @@ def user_sales_all_list():
     return jsonify(response)
 
 
+@bp.route('/user/collector', methods=["GET"])
+@jwt_required()
+def user_collector_all():
+    user_controller = UserController()
+    branch_privilege = current_identity.branch_privilege
+    division_privilege = current_identity.division_privilege
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+    page = int(request.args.get('page'))
+    limit = int(request.args.get('limit'))
+    search = None
+    column = None
+    direction = None
+    data_filter = None
+    if request.args.get('search'):
+        search = request.args.get('search')
+    if request.args.get('order_by_column'):
+        column = request.args.get('order_by_column')
+        direction = request.args.get('order_direction')
+    if request.args.get('page_filter'):
+        data_filter = request.args.get('page_filter')
+        data_filter = json.loads(data_filter)
+
+    user = user_controller.get_all_user_collector_data(
+        page=page, limit=limit, search=search, column=column, direction=direction,
+        branch_privilege=branch_privilege, division_privilege=division_privilege, data_filter=data_filter
+    )
+
+    response['error'] = 0
+    response['data'] = user
+
+    return jsonify(response)
+
+
 @bp.route('/user/logistic', methods=["GET"])
 @jwt_required()
 def user_logistic_all_list():
     """
-
     :return:
     """
     user_controller = UserController()

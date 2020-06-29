@@ -55,10 +55,13 @@ class SalesActivityModel(Model):
             self, cursor, select='*', select_count='', select_from='', join='', where='', order='', group=''
     ):
         try:
-            return self.get_sql_count_statistic(
+            # custom test
+            sql = self.get_sql_count_statistic(
                 cursor, key=select, key_count=select_count, from_select=select_from, join=join, where=where,
                 order=order, group=group
             )
+            # print("sql-command : ", sql)
+            return sql
         except Exception as e:
             raise e
 

@@ -200,6 +200,13 @@ def get_all_activity_report(job):
             page=page, limit=limit, search=search, column=column, direction=direction,
             branch_privilege=branch_privilege, division_privilege=division_privilege, data_filter=data_filter
         )
+
+    elif job == 'collector':
+        result = sa_controller.get_all_activity_data_by_visit_plan_collector(
+            page=page, limit=limit, search=search, column=column, direction=direction,
+            branch_privilege=branch_privilege, division_privilege=division_privilege, data_filter=data_filter
+        )
+
     elif job == 'logistic':
         result = la_controller.get_all_activity_data_by_delivery_plan(
             page=page, limit=limit, search=search, column=column, direction=direction,
@@ -272,6 +279,12 @@ def export_all_activity_report(job):
             page=page, limit=limit, search=search, column=column, direction=direction,
             branch_privilege=branch_privilege, division_privilege=division_privilege, data_filter=data_filter
         )
+
+    elif job == 'collector':
+        result = sa_controller.get_all_export_activity_data_by_visit_plan_collector(
+            page=page, limit=limit, search=search, column=column, direction=direction,
+            branch_privilege=branch_privilege, division_privilege=division_privilege, data_filter=data_filter
+        )        
         
     elif job == 'logistic':
         result = la_controller.get_all_export_activity_data_by_delivery_plan(
@@ -413,6 +426,13 @@ def export_pdf_all_activity_report(job):
             #     )
         else:
             filename = 'Report_visit_plan_all.pdf'
+
+    elif job == 'collector':
+        if data_filter:
+            filename = 'Report_visit_plan_collector_filter.pdf'
+        else:
+            filename = 'Report_visit_plan_collector_all.pdf'
+
     elif job == 'logistic':
         if data_filter:
             data_filter = data_filter[0]

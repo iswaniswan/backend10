@@ -14,7 +14,7 @@ class Model:
         self.change_charset_to_utf8mb4(cursor)
         try:
             sql = """SELECT {} FROM {} {} {} {} {}""".format(fields, self.table, join, where, order, limit)
-            # print("sql get : ", sql)
+            print("sql get : ", sql)
             cursor.execute(sql)
             data = cursor.fetchall()
         except Exception:

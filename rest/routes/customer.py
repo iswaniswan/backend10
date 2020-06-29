@@ -648,6 +648,8 @@ def get_all_customer_report(job_function):
         'data': []
     }
 
+    print("current-job-function : ", job_function)
+
     search = None
     data_filter = None
     result_area = []
@@ -674,13 +676,16 @@ def get_all_customer_report(job_function):
             list_customer = user_controller.get_customer_from_supervisor(
                 branch_privilege=branch_privilege, division_privilege=division_privilege, category=category
             )
+            
         else:
             raise BadRequest(
                 "Can't view report customer, only with assign supervisor sales or logistic", 422, 1, data=[]
             )
     else:
         list_customer = True
+    
     if data_filter:
+        print("data is filtered", data_filter)
         if data_filter['area']:
             list_polygon_area = []
             for area_id in literal_eval(data_filter['area']):
@@ -703,6 +708,7 @@ def get_all_customer_report(job_function):
                     pass
 
             if list_polygon_area:
+                print("list_polygon is executed : ", list_polygon_area)
                 try:
                     result_area = customer_controller.get_all_customer_by_area(list_polygon_area, job_function,
                                                                                data_filter)

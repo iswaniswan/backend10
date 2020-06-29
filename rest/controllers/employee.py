@@ -213,7 +213,53 @@ class EmployeeController(object):
         data = []
         start = page * limit - limit
         order = ''
-        where = "WHERE (job_function = 'sales' AND is_approval = 1 AND `is_deleted` = 0) "
+        # where = "WHERE (job_function = 'sales' AND is_approval = 1 AND `is_deleted` = 0) "
+        # get only sales
+        where = "WHERE (job_function = 'sales' AND is_collector_only = 0 AND is_approval = 1 AND `is_deleted` = 0) "
+        if column:
+            order = """ORDER BY {0} {1}""".format(column, direction)
+        if search:
+            where += """AND (name LIKE '%{0}%' OR nip LIKE '%{0}%' OR phone LIKE '%{0}%')""".format(search)
+        employee_data = self.employee_model.get_all_employee(self.cursor, where=where, order=order,
+                                                             start=start, limit=limit)
+
+        count_filter = self.employee_model.get_count_all_employee(self.cursor, where=where)
+        count = self.employee_model.get_count_all_employee(self.cursor, where=where)
+        if employee_data:
+            for emp in employee_data:
+                if emp['edit_data'] is not None:
+                    emp['edit_data'] = json.loads(emp['edit_data'])
+                data.append(emp)
+        employee['data'] = data
+        employee['total'] = count
+        employee['total_filter'] = count_filter
+
+        # TODO: Check Has Next and Prev
+        if employee['total'] > page * limit:
+            employee['has_next'] = True
+        else:
+            employee['has_next'] = False
+        if limit <= page * count - count:
+            employee['has_prev'] = True
+        else:
+            employee['has_prev'] = False
+        return employee
+
+    def get_all_employee_collector_data(self, page: int, limit: int, search: str, column: str, direction: str):
+        """
+        Get List Of Employee
+        :param: page: int
+        :param: limit: int
+        :return:
+            list Employee Object
+        """
+        employee = {}
+        data = []
+        start = page * limit - limit
+        order = ''
+        # where = "WHERE (job_function = 'sales' AND is_approval = 1 AND `is_deleted` = 0) "
+        # get only sales
+        where = "WHERE (job_function = 'sales' AND is_collector_only = 1 AND is_approval = 1 AND `is_deleted` = 0) "
         if column:
             order = """ORDER BY {0} {1}""".format(column, direction)
         if search:

@@ -1593,6 +1593,103 @@ def get_all_visit_plan():
 
     return jsonify(response)
 
+@bp.route('/visit/plan/sales', methods=["GET"])
+@jwt_required()
+def get_all_visit_plan_sales():
+    visit_controller = VisitController()
+
+    branch_privilege = current_identity.branch_privilege
+    division_privilege = current_identity.division_privilege
+
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+    user_id = current_identity.id
+    if request.args.get('user_id'):
+        user_id = request.args.get('user_id')
+    type = 'mobile'
+    if request.args.get('type'):
+        type = 'web'
+
+    if type == 'web':
+        page = int(request.args.get('page'))
+        limit = int(request.args.get('limit'))
+        search = None
+        column = None
+        direction = None
+        data_filter = None
+        if request.args.get('search'):
+            search = request.args.get('search')
+        if request.args.get('order_by_column'):
+            column = request.args.get('order_by_column')
+            direction = request.args.get('order_direction')
+        if request.args.get('page_filter'):
+            data_filter = request.args.get('page_filter')
+            data_filter = json.loads(data_filter)
+
+        visit_plan = visit_controller.get_all_visit_plan_data_sales(
+            page=page, limit=limit, search=search, column=column, user_id=None, direction=direction,
+            branch_privilege=branch_privilege, division_privilege=division_privilege, data_filter=data_filter
+        )
+    else:
+        visit_plan = visit_controller.get_visit_plan_by_user_date(_id=user_id)
+
+    response['error'] = 0
+    response['data'] = visit_plan
+
+    return jsonify(response)    
+
+
+@bp.route('/visit/plan/collector', methods=["GET"])
+@jwt_required()
+def get_all_visit_plan_collector():
+    visit_controller = VisitController()
+
+    branch_privilege = current_identity.branch_privilege
+    division_privilege = current_identity.division_privilege
+
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+    user_id = current_identity.id
+    if request.args.get('user_id'):
+        user_id = request.args.get('user_id')
+    type = 'mobile'
+    if request.args.get('type'):
+        type = 'web'
+
+    if type == 'web':
+        page = int(request.args.get('page'))
+        limit = int(request.args.get('limit'))
+        search = None
+        column = None
+        direction = None
+        data_filter = None
+        if request.args.get('search'):
+            search = request.args.get('search')
+        if request.args.get('order_by_column'):
+            column = request.args.get('order_by_column')
+            direction = request.args.get('order_direction')
+        if request.args.get('page_filter'):
+            data_filter = request.args.get('page_filter')
+            data_filter = json.loads(data_filter)
+
+        visit_plan = visit_controller.get_all_visit_plan_data_collector(
+            page=page, limit=limit, search=search, column=column, user_id=None, direction=direction,
+            branch_privilege=branch_privilege, division_privilege=division_privilege, data_filter=data_filter
+        )
+    else:
+        visit_plan = visit_controller.get_visit_plan_by_user_date(_id=user_id)
+
+    response['error'] = 0
+    response['data'] = visit_plan
+
+    return jsonify(response)    
+
 
 @bp.route('/visit/plan/approval', methods=["GET"])
 @jwt_required()

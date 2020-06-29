@@ -70,7 +70,23 @@ class CustomerModel(Model):
     def get_all_customer(self, cursor, start=0, limit=50, select='*', join='', where='', order=''):
         try:
             return self.get(cursor, fields=select, join=join, where=where, order=order,
-                            limit="LIMIT {}, {}".format(start, limit))
+                            limit="LIMIT {}, {}".format(start, limit))            
+        except Exception as e:
+            raise e
+
+    def get_all_customer_has_category_visit(self, cursor, start=0, limit=50, select='*', join='', where='', order=''):
+        try:
+            where += ' visit_plan_summary.category_visit is not null '
+            return self.get(cursor, fields=select, join=join, where=where, order=order,
+                            limit="LIMIT {}, {}".format(start, limit))            
+        except Exception as e:
+            raise e
+
+    def get_all_customer_has_collect_method(self, cursor, start=0, limit=50, select='*', join='', where='', order=''):
+        try:
+            where += ' visit_plan_summary.collect_method is not null '
+            return self.get(cursor, fields=select, join=join, where=where, order=order,
+                            limit="LIMIT {}, {}".format(start, limit))            
         except Exception as e:
             raise e
 

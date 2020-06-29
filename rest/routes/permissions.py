@@ -578,11 +578,18 @@ def permission_alert_all_list():
         data_filter = request.args.get('page_filter')
         data_filter = json.loads(data_filter)
 
-    result = permissions_controller.get_all_permission_alert_data(
-        page=page, limit=limit, search=search, column=column, direction=direction, tipe=tipe,
-        category=category, log=log, user_id=user_id, job_category=job_category, branch_privilege=branch_privilege,
-        division_privilege=division_privilege, data_filter=data_filter
-    )
+    if(job_category == 'collector'):
+        result = permissions_controller.get_all_permission_alert_data_collector(
+            page=page, limit=limit, search=search, column=column, direction=direction, tipe=tipe,
+            category=category, log=log, user_id=user_id, job_category=job_category, branch_privilege=branch_privilege,
+            division_privilege=division_privilege, data_filter=data_filter
+        )
+    else :
+        result = permissions_controller.get_all_permission_alert_data(
+            page=page, limit=limit, search=search, column=column, direction=direction, tipe=tipe,
+            category=category, log=log, user_id=user_id, job_category=job_category, branch_privilege=branch_privilege,
+            division_privilege=division_privilege, data_filter=data_filter
+        )
 
     response['error'] = 0
     response['data'] = result
@@ -655,17 +662,33 @@ def export_alert_all_list():
             raise BadRequest(
                 "Can't view list customer, only with assign supervisor sales or logistic", 422, 1, data=[]
             )
+            
     if request.args.get('job_category'):
         job_category = request.args.get('job_category')
     if request.args.get('page_filter'):
         data_filter = request.args.get('page_filter')
         data_filter = json.loads(data_filter)
 
-    result = permissions_controller.get_all_export_permission_alert_data(
-        page=page, limit=limit, search=search, column=column, direction=direction, tipe=tipe,
-        category=category, log=log, user_id=user_id, job_category=job_category, branch_privilege=branch_privilege,
-        division_privilege=division_privilege, data_filter=data_filter
-    )
+
+    result = permissions_controller.get_all_export_permission_alert_data_collector(
+            page=page, limit=limit, search=search, column=column, direction=direction, tipe=tipe,
+            category=category, log=log, user_id=user_id, job_category=job_category, branch_privilege=branch_privilege,
+            division_privilege=division_privilege, data_filter=data_filter
+        )
+
+    # if job_category == 'collector':
+    #     result = permissions_controller.get_all_export_permission_alert_data_collector(
+    #         page=page, limit=limit, search=search, column=column, direction=direction, tipe=tipe,
+    #         category=category, log=log, user_id=user_id, job_category=job_category, branch_privilege=branch_privilege,
+    #         division_privilege=division_privilege, data_filter=data_filter
+    #     )
+
+    # else:        
+    #     result = permissions_controller.get_all_export_permission_alert_data(
+    #         page=page, limit=limit, search=search, column=column, direction=direction, tipe=tipe,
+    #         category=category, log=log, user_id=user_id, job_category=job_category, branch_privilege=branch_privilege,
+    #         division_privilege=division_privilege, data_filter=data_filter
+    #     )
 
     if data_filter:
         data_filter = data_filter[0]
