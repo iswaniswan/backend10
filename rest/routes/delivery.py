@@ -2270,7 +2270,38 @@ def get_delivery_by_customer(customer_code):
 
     response = {
         'error': 1,
-        'message': '',
+        'message': 'get delivery by customer',
+        'data': []
+    }
+
+    page = int(request.args.get('page'))
+    limit = int(request.args.get('limit'))
+    search = None
+    column = None
+    direction = None
+    if request.args.get('search'):
+        search = request.args.get('search')
+    if request.args.get('order_by_column'):
+        column = request.args.get('order_by_column')
+        direction = request.args.get('order_direction')
+
+    result = delivery_controller.get_all_delivery_data(
+        page=page, limit=limit, search=search, column=column, direction=direction, customer_code=customer_code
+    )
+
+    response['error'] = 0
+    response['data'] = result
+    return jsonify(response)
+
+
+# receice request dari frontend edit customer
+@bp.route('/delivery_by_customer/<string:customer_code>', methods=["GET"])
+@jwt_required()
+def get_delivery_by_customer_edit_customer(customer_code):
+    delivery_controller = DeliveryController()
+    response = {
+        'error': 1,
+        'message': 'get delivery by customer',
         'data': []
     }
 
@@ -2380,7 +2411,7 @@ def get_delivery_by_delivery_id(delivery_id):
 
     response = {
         'error': 1,
-        'message': '',
+        'message': 'get delivery by delivery id',
         'data': []
     }
     # if request.args.get('page'):

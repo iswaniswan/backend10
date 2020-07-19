@@ -243,13 +243,15 @@ class SalesActivityController(object):
         data = []
         start = page * limit - limit
         order = ''
+        sales_div_id = [1, 2, 5, 6]
         # where = """WHERE (vp.is_approval = 1 AND vp.is_deleted = 0) 
         # AND (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
         #     ", ".join(str(x) for x in branch_privilege), ", ".join(str(x) for x in division_privilege)
         # )
         where = """WHERE (vp.is_approval = 1 AND vp.is_deleted = 0) 
         AND (u.branch_id IN ({0}) AND u.division_id IN ({1})) """.format(
-            ", ".join(str(x) for x in branch_privilege), 2)
+            ", ".join(str(x) for x in branch_privilege), 
+            ", ".join(str(x) for x in sales_div_id))
         where_original = where
         if column:
             if column == 'start_branch':

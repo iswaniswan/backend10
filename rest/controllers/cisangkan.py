@@ -791,3 +791,58 @@ class CisangkanController(object):
         um = UserModel()
         user_data = um.get_user_by_id(self.cursor, user_id)
         return user_data[0]["username"]
+
+    def get_visit_category_sales(self, users:list, start_date: str, end_date: str):
+        select = """ vp.create_by, u.username, vp.category_visit, count(vp.category_visit) as count """
+        join= """ as vp INNER JOIN users as u ON vp.create_by=u.id """
+        where = """ WHERE (vp.create_date>='{0}' AND vp.create_date<='{1}') """.format(start_date, end_date)
+        where += """ AND vp.create_by in ({0}) """.format(", ".join(str(x) for x in users))
+        order = """ GROUP BY vp.create_by, vp.category_visit """
+        order += """ ORDER BY vp.create_by ASC """
+        
+        print("params user_ids : ", users)
+
+        result = self.cisangkan_visit_plan_summary_model.get_performance_visit_summary(
+            self.cursor, select, join, where, order
+        )
+
+        datas = []
+        if result:
+            idx = []
+            for i in range(0, result.__len__(), 1):
+                id = result[i]['create_by']
+
+                obj = {}
+                obj_data = {}
+                obj_data_category = {}
+
+                obj_data['username'] = result[i]['username']
+                catStr = str(result[i]['category_visit']).lower()
+                key_category_visit = catStr.replace(' ', '_')
+                obj_data_category[key_category_visit] = result[i]['count']
+                obj_data['category'] = obj_data_category
+
+                obj[id] = obj_data
+
+                merged = False
+                if id in idx:
+                    merged = True
+
+                if merged:
+                    for j in range(0, datas.__len__()):
+                        for key, val in datas[j].items():
+                            if id == key:
+                                for k, v in val.items():
+                                    if k == 'category':
+                                        v.update(obj_data_category)
+
+                else:
+                    idx.append(id)
+                    datas.append(obj)
+
+        return datas
+
+
+    def get_collect_method_collector(self, start_date: str, end_date: str):
+        result = "collect method"
+        return result

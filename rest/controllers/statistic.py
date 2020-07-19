@@ -39,7 +39,7 @@ class SalesStatisticController(object):
 
     def get_statistic_visit_sales(self, branch_privilege: list, division_privilege: list, start_date: str, end_date: str):
         # collector = 4, sales = 2
-        sales_div_id = [2]
+        sales_div_id = [1,2,5,6]
         division_privilege = sales_div_id
 
         today = datetime.today()
@@ -94,6 +94,7 @@ class SalesStatisticController(object):
         total_plan = 0
         total_visited = 0
         total_cancel = 0
+
         for res in result:
             plan = 0
             actual = 0
@@ -126,12 +127,14 @@ class SalesStatisticController(object):
         data_statistic_visit['total_visit_actual'] = data_total
         data_statistic_visit['data_visit_actual'] = data_branch
 
+        print("data_total : ", data_statistic_visit)
+
         # custom
         # TODO get all sales id
         sales = []
         select = "u.id "
         join = """u INNER JOIN divisions d ON division_id = d.id """
-        where="WHERE u.is_deleted = 0 AND d.id = '{0}' ".format(2)
+        where="WHERE u.is_deleted = 0 AND d.id IN ({0}) ".format(", ".join(str(x) for x in sales_div_id))
         try:
             result = self.cs_user_model.m_get_custom_user_properties(self.cursor, select, join, where)
         except Exception as e:
@@ -142,7 +145,8 @@ class SalesStatisticController(object):
 
         # TODO get summary tujuan visit
         select = "category_visit, count(category_visit) as jml "
-        where = """WHERE category_visit is not NULL AND create_by IN ({}) """.format(", ".join(str(x) for x in sales),)
+        where = """WHERE category_visit is not NULL """
+        # AND create_by IN ({}) """.format(", ".join(str(x) for x in sales))
         if start_date and end_date:
             where += """AND (create_date >= '{0} 00:00:00' AND create_date <= '{1} 23:59:59') """.format(start_date, end_date)
         else:

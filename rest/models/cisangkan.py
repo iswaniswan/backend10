@@ -178,6 +178,12 @@ class CisangkanVisitPlanSummaryModel(Model):
         except Exception as e:
             raise e
 
+    def get_performance_visit_summary(self, cursor, fields, join, where, order):
+        try:
+            return self.get(cursor, fields=fields, join=join, where=where, order=order)
+        except Exception as e:
+            raise e
+
 
 
 class CisangkanPackingSlipModel(Model):

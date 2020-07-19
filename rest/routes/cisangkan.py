@@ -8,7 +8,7 @@ import pickle
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt import jwt_required, current_identity
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, date
 from ast import literal_eval
 
 from rest.exceptions import BadRequest
@@ -674,3 +674,44 @@ def test_custom_join_tables():
         raise BadRequest(e, 500, 1, data=[])
 
     return jsonify(response)
+
+
+@bp.route('/visit_summary/<job>/category', methods=['GET'])
+@jwt_required()
+def get_visit_category_by_job_function(job):
+    today = date.today()
+    now = datetime.now()
+    start_date = today.strftime("%Y-%m-%d %H:%M:%S")
+    end_date = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    user_ids = json.loads(request.args.get('user_id'))
+    if not user_ids:
+        raise BadRequest('Please input minimal one id user', 422, 1, data=[])
+    if request.args.get('start_date'):
+        start_date = request.args.get('start_date') + " 00:00:00"
+    if request.args.get('end_date'):
+        end_date = request.args.get('end_date') + " 23:59:59"
+
+    # print("start : ", start_date, ", end : ", end_date)
+
+    cc = CisangkanController()
+    result = None
+    if(job == 'sales'):
+        try:
+            result = cc.get_visit_category_sales(user_ids, start_date, end_date)
+        except:
+            raise BadRequest("parameters incorrect", 500, 1, data=[])
+    if(job == 'collector'):
+        try:
+            result = cc.get_collect_method_collector(start_date, end_date)
+        except:
+            raise BadRequest("parameters incorrect", 500, 1, data=[])
+
+    response = {
+        'error': 0,
+        'message': 'success',
+        'data': result
+    }
+
+    return jsonify(response)
+

@@ -142,7 +142,7 @@ class VisitPlanModel(Model):
                 cursor, key=select, key_count=select_count, from_select=select_form, join=join, where=where,
                 order='', group=group
             )
-            print("query : ", query)
+            # print("query : ", query)
             return query
             # return self.get_sql_count_statistic(
             #     cursor, key=select, key_count=select_count, from_select=select_form, join=join, where=where,

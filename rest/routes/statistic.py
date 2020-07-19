@@ -43,7 +43,7 @@ def statistic_sales_visit():
         start_date = request.args.get('start_date')
     if request.args.get('end_date'):
         end_date = request.args.get('end_date')
-
+        
     result = ss_controller.get_statistic_visit_sales(branch_privilege, division_privilege, start_date, end_date)
 
     response['error'] = 0
@@ -562,6 +562,39 @@ def statistic_performance_list_user(job):
     response['data'] = result
 
     return jsonify(response)
+
+@bp.route('/statistic/<job>/performance_chart', methods=['GET'])
+@jwt_required()
+def statistic_performance_list_user_chart(job):
+    user_id = current_identity.id
+    branch_privilege = current_identity.branch_privilege
+    division_privilege = current_identity.division_privilege
+
+    statistic_controller = StatisticController()
+
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }
+    user_ids = json.loads(request.args.get('user_id'))
+    if not user_ids:
+        raise BadRequest('Please input minimal one id user', 422, 1, data=[])
+    today = date.today()
+    todays = today.strftime("%Y-%m-%d")
+    start_date = todays
+    end_date = todays
+    if request.args.get('start_date'):
+        start_date = request.args.get('start_date')
+    if request.args.get('end_date'):
+        end_date = request.args.get('end_date')
+
+    result = statistic_controller.get_statistic_performance_by_user_id(job, user_ids, start_date, end_date)
+
+    response['error'] = 0
+    response['data'] = result
+
+    return jsonify(response)   
 
 
 @bp.route('/statistic/test', methods=['GET'])
