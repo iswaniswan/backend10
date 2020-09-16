@@ -245,12 +245,21 @@ class UserController(object):
         :return:
             boolean status
         """
-        user = self.user_login_model.get_user_by_user_type(self.cursor, username, tipe_login)
+        user = self.user_login_model.get_user_by_user_type(self.cursor, username, tipe_login)        
 
         if len(user) == 0:
             return False
         else:
-            return True
+            now = datetime.now()
+            day = now.strftime("%Y-%m-%d %H:%M:%S")
+            last_login = user[0]['login_date']
+            diff_hour = divmod((now - last_login).total_seconds(), 3600)
+            if(diff_hour[0] > 24):
+                # force to logout 
+                self.delete_user_login(user[0]['username'], user[0]['type'])
+                return True
+            else:             
+                return True
 
     def get_user_login_data(self, username: str):
         """
