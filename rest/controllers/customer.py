@@ -550,6 +550,7 @@ class CustomerController(object):
                 )
                 
                 where += "AND customer.is_branch = 0 AND customer.is_deleted = 0 "
+                where += "AND (sales_activity.create_date >= '{0}' AND sales_activity.create_date <= '{1}') ".format(start_date, end_date)
                 where += "GROUP BY customer.code"
 
             else:
@@ -588,6 +589,7 @@ class CustomerController(object):
                 )
                 
                 where += "AND customer.is_branch = 0 AND customer.is_deleted = 0 "
+                where += "AND (sales_activity.create_date >= '{0}' AND sales_activity.create_date <= '{1}') ".format(start_date, end_date)
                 where += "GROUP BY customer.code"
 
             else:
