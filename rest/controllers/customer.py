@@ -311,7 +311,7 @@ class CustomerController(object):
                         "phone": rec['phone']
                     })
             if customer['parent_code'] is None:
-                where = """WHERE `parent_code` = '{}' AND `is_approval` = 1 AND `is_deleted` = 0""".format(
+                where = """WHERE `parent_code` = '{}' AND `is_approval` = 1 AND `is_deleted` = 0 """.format(
                     customer['code'])
                 customer_data = self.customer_model.get_all_customer(self.cursor, where=where)
                 if customer_data:
@@ -523,8 +523,8 @@ class CustomerController(object):
         customer = {}
         data = []
         # 
-        start_date = data_filter['start_date'] + " 00:00:00"
-        end_date = data_filter['end_date'] + " 23:59:59"
+        start_date = data_filter['start_date'] + " 00:00:00 "
+        end_date = data_filter['end_date'] + " 23:59:59 "
         # print("start_date: ", start_date, " end_date: ", end_date)
         # 
         select = """customer.code"""
@@ -549,7 +549,7 @@ class CustomerController(object):
                     data_filter_user_id
                 )
                 
-                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0"
+                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0 "
                 where += "GROUP BY customer.code"
 
             else:
@@ -587,7 +587,7 @@ class CustomerController(object):
                     data_filter_user_id
                 )
                 
-                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0"
+                where += "AND customer.is_branch = 0 AND customer.is_deleted = 0 "
                 where += "GROUP BY customer.code"
 
             else:
