@@ -245,21 +245,12 @@ class UserController(object):
         :return:
             boolean status
         """
-        user = self.user_login_model.get_user_by_user_type(self.cursor, username, tipe_login)        
+        user = self.user_login_model.get_user_by_user_type(self.cursor, username, tipe_login)
 
         if len(user) == 0:
             return False
         else:
-            now = datetime.now()
-            day = now.strftime("%Y-%m-%d %H:%M:%S")
-            last_login = user[0]['login_date']
-            diff_hour = divmod((now - last_login).total_seconds(), 3600)
-            if(diff_hour[0] > 12):
-                # force to logout 
-                self.delete_user_login(user[0]['username'], user[0]['type'])
-                return False
-            else:             
-                return True
+            return True
 
     def get_user_login_data(self, username: str):
         """
@@ -399,7 +390,6 @@ class UserController(object):
         if len(user) == 0:
             raise BadRequest("Wrong username or password", 500, 1, data=[])
         else:
-
             user = user[0]
             if user['employee_id'] is not None:
                 employee = self.employee_model.get_employee_by_id(self.cursor, user['employee_id'])[0]
@@ -569,10 +559,7 @@ class UserController(object):
             if user['employee_id'] is not None:
                 try:
                     user['employee'] = self.employee_model.get_employee_by_id(
-                        self.cursor, user['employee_id'], select="id, name, nip, email, phone, job_function, is_collector_only")[0]
-                    if user['employee']:
-                        user['employee']['job_function'] = ("sales" if user['employee']['is_collectory_only'] == 1 else user['employee']['job_function'])
-                        del user['employee']['is_collector_only']
+                        self.cursor, user['employee_id'], select="id, name, nip, email, phone, job_function")[0]
                 except:
                     user['employee'] = {}
             else:
@@ -728,15 +715,8 @@ class UserController(object):
                 if u['employee_id'] is not None:
                     try:
                         u['employee'] = self.employee_model.get_employee_by_id(
-                            self.cursor, u['employee_id'], select="id, name, nip, email, phone, job_function, is_collector_only"
+                            self.cursor, u['employee_id'], select="id, name, nip, email, phone, job_function"
                         )[0]
-                        # 
-                        if u['employee']:
-                            if u['employee']['is_collector_only'] == 1:
-                                u['employee']['job_function'] = 'Collector'
-
-                            del u['employee']['is_collector_only']                                
-                        # 
                     except:
                         u['employee'] = {}
                 else:
@@ -799,13 +779,10 @@ class UserController(object):
         user = {}
         data = []
         start = page * limit - limit
-        # where = """WHERE (e.job_function = 'sales' AND u.branch_id IN ({0}) AND u.division_id IN ({1}) 
-        # AND u.is_approval = 1 AND u.is_deleted = 0) """.format(
-        #     ", ".join(str(x) for x in branch_privilege), ", ".join(str(x) for x in division_privilege)
-        # )
         where = """WHERE (e.job_function = 'sales' AND u.branch_id IN ({0}) AND u.division_id IN ({1}) 
         AND u.is_approval = 1 AND u.is_deleted = 0) """.format(
-            ", ".join(str(x) for x in branch_privilege), '2, 5, 6')
+            ", ".join(str(x) for x in branch_privilege), ", ".join(str(x) for x in division_privilege)
+        )
         where_original = where
         order = ''
         if column:
@@ -921,134 +898,6 @@ class UserController(object):
         else:
             user['has_prev'] = False
         return user
-    
-    # 
-    def get_all_user_collector_data(
-        self, page: int, limit: int, search: str, column: str, direction: str,
-        branch_privilege: list, division_privilege: list, data_filter: list
-    ):
-        user = {}
-        data = []
-        start = page * limit - limit
-        where = """WHERE (e.job_function = 'sales' AND u.branch_id IN ({0}) AND u.division_id IN ({1}) 
-        AND u.is_approval = 1 AND u.is_deleted = 0) """.format(
-            ", ".join(str(x) for x in branch_privilege), 4)
-        where_original = where
-        order = ''
-        if column:
-            if column == 'employee':
-                order = """ORDER BY e.name {0}""".format(direction)
-            elif column == 'user_group':
-                order = """ORDER BY ug.group_name {0}""".format(direction)
-            elif column == 'division':
-                order = """ORDER BY d.division_name {0}""".format(direction)
-            elif column == 'branch':
-                order = """ORDER BY b.name {0}""".format(direction)
-            else:
-                order = """ORDER BY u.{0} {1}""".format(column, direction)
-
-        select = "u.*"
-        select_count = "u.id"
-        join = """as u LEFT JOIN `employee` as e ON u.employee_id = e.id 
-        LEFT JOIN `branches` as b ON u.branch_id = b.id 
-        LEFT JOIN `divisions` as d ON u.division_id = d.id 
-        LEFT JOIN `user_groups` as ug ON u.user_group_id = ug.id"""
-        if search:
-            where += """AND (u.username LIKE '%{0}%' OR u.email LIKE '%{0}%' OR b.name LIKE '%{0}%' OR d.division_name LIKE '%{0}%' 
-            OR ug.group_name LIKE '%{0}%' OR e.name LIKE '%{0}%') """.format(search)
-        if data_filter:
-            data_filter = data_filter[0]
-            if data_filter['user_id']:
-                where += """AND u.id IN ({0}) """.format(", ".join(str(x) for x in data_filter['user_id']))
-            if data_filter['branch_id']:
-                where += """AND u.branch_id IN ({0}) """.format(", ".join(str(x) for x in data_filter['branch_id']))
-            if data_filter['division_id']:
-                where += """AND u.division_id IN ({0}) """.format(", ".join(str(x) for x in data_filter['division_id']))
-        user_data = self.user_model.get_all_user(
-            self.cursor, select=select, join=join, where=where, order=order, start=start, limit=limit
-        )
-        count_filter = self.user_model.get_count_all_user(self.cursor, select=select_count, join=join, where=where)
-        count = self.user_model.get_count_all_user(self.cursor, select=select_count, join=join, where=where_original)
-
-        if user_data:
-            for u in user_data:
-                if u['permissions'] is not None:
-                    u['permissions'] = json.loads(u['permissions'])
-                if u['division_id'] is not None:
-                    try:
-                        u['division'] = self.division_model.get_division_by_id(
-                            self.cursor, u['division_id'], select="id, division_code, division_name"
-                        )[0]
-                    except:
-                        u['division'] = {}
-                else:
-                    u['division'] = {}
-                if u['branch_id'] is not None:
-                    try:
-                        u['branch'] = self.branches_model.get_branches_by_id(
-                            self.cursor, u['branch_id'], select="id, branch_code, name, phone, email, address, lng, "
-                                                                "lat, working_day_start, working_day_end, "
-                                                                "working_hour_start, working_hour_end, nfcid, "
-                                                                "area_id, division_id"
-                        )[0]
-                    except:
-                        u['branch'] = {}
-                    if u['branch']['working_hour_start'] is not None:
-                        u['branch']['working_hour_start'] = str(u['branch']['working_hour_start'])
-                    if u['branch']['working_hour_end'] is not None:
-                        u['branch']['working_hour_end'] = str(u['branch']['working_hour_end'])
-                    if u['branch']['division_id'] is not None:
-                        u['branch']['division_id'] = json.loads(u['branch']['division_id'])
-                else:
-                    u['branch'] = {}
-                if u['employee_id'] is not None:
-                    try:
-                        u['employee'] = self.employee_model.get_employee_by_id(
-                            self.cursor, u['employee_id'],
-                            select="id, name, nip, email, phone, job_function, is_collector_only, is_can_collect"
-                        )[0]
-                    except:
-                        u['employee'] = {}
-                else:
-                    u['employee'] = {}
-                if u['user_group_id'] is not None:
-                    try:
-                        u['user_group'] = self.user_group_model.get_user_group_by_id(self.cursor, u['user_group_id'],
-                                                                                     select="id, group_name, code, "
-                                                                                            "have_asset, asset")[0]
-                    except:
-                        u['user_group'] = {}
-                    if u['user_group']['asset'] is not None:
-                        u['user_group']['asset'] = json.loads(u['user_group']['asset'])
-                else:
-                    u['user_group'] = {}
-                if u['area_id'] is not None:
-                    try:
-                        u['area'] = self.area_model.get_area_by_id(self.cursor, u['area_id'],
-                                                                   select="id, name, marker_type, marker_color, "
-                                                                          "markers, description")[0]
-                    except:
-                        u['area'] = {}
-                    if u['area']['markers'] is not None:
-                        u['area']['markers'] = json.loads(u['area']['markers'])
-                else:
-                    u['area'] = {}
-                data.append(u)
-        user['data'] = data
-        user['total'] = count
-        user['total_filter'] = count_filter
-
-        # TODO: Check Has Next and Prev
-        if user['total'] > page * limit:
-            user['has_next'] = True
-        else:
-            user['has_next'] = False
-        if limit <= page * count - count:
-            user['has_prev'] = True
-        else:
-            user['has_prev'] = False
-        return user
-    # 
 
     def get_all_user_logistic_data(self, page: int, limit: int, search: str, column: str, direction: str,
                                    branch_privilege: list, data_filter: list):
@@ -1457,7 +1306,7 @@ class UserController(object):
         :return:
         """
         list_customer = []
-        print("category-user-controller:", category)
+
         if category == "sales":
             select = "u.customer_id"
             join = "AS u LEFT JOIN `employee` AS e ON u.employee_id = e.id "
