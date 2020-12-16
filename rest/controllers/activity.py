@@ -1235,7 +1235,7 @@ class SalesActivityController(object):
                                     try:
                                         customer = \
                                             self.customer_model.get_customer_by_code(self.cursor, ad['nfc_code'],
-                                                                                     ignore_is_deleted=True)[0]
+                                                                            ignore_is_deleted=True)[0]
                                         ad['customer_name'] = customer['name']
                                         ad['customer_address'] = customer['address']
                                     except:
