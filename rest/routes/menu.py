@@ -69,7 +69,7 @@ def get_menu():
                         del m['expanded']
                 
                 if current_identity.permissions_group is not None:
-                    print("my permissions : ", current_identity.permissions)
+                    # print("my permissions : ", current_identity.permissions)
                     if current_identity.permissions[m['code']]['rule-view'] == 10:
                         if current_identity.permissions_group[m['code']]['rule-view'] == 0:
                             m['hidden'] = True

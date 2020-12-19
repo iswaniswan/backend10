@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import sys
 
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, make_response, send_file
 from flask_jwt import jwt_required, current_identity
 from werkzeug.utils import secure_filename
 from datetime import datetime
@@ -439,6 +439,138 @@ def get_all_customer():
 
     return jsonify(response)
 
+
+# custom
+
+@bp.route('/customer/only_assigned', methods=["GET"])
+@jwt_required()
+def get_all_customer_only_assigned():
+    customer_controller = CustomerController()
+    user_controller = UserController()
+
+    branch_privilege = current_identity.branch_privilege
+    division_privilege = current_identity.division_privilege
+    job_function = current_identity.job_function
+    is_supervisor_sales = current_identity.is_supervisor_sales
+    is_supervisor_logistic = current_identity.is_supervisor_logistic
+
+    response = {
+        'error': 1,
+        'message': '',
+        'data': []
+    }    
+
+    page = int(request.args.get('page'))
+    limit = int(request.args.get('limit'))
+    search = None
+    column = None
+    direction = None
+    if request.args.get('search'):
+        search = request.args.get('search')
+    if request.args.get('order_by_column'):
+        column = request.args.get('order_by_column')
+        direction = request.args.get('order_direction')
+    if request.args.get('dropdown'):
+        if job_function == 'supervisor':
+            if is_supervisor_sales == 1 and is_supervisor_logistic == 0:
+                category = 'sales'
+            elif is_supervisor_sales == 0 and is_supervisor_logistic == 1:
+                category = 'logistic'
+            elif is_supervisor_sales == 1 and is_supervisor_logistic == 1:
+                category = 'all'
+            else:
+                raise BadRequest(
+                    "Can't view list customer, only with assign supervisor sales or logistic", 422, 1, data=[]
+                )
+        dropdown = True
+        # Limit for Search Dropdown Destination
+        limit = int(20)        
+
+        list_customer = user_controller.get_customer_from_supervisor(
+            branch_privilege=branch_privilege, division_privilege=division_privilege, category=category
+        )
+    else:
+        
+        list_customer = []
+        dropdown = False
+
+    if(job_function == 'supervisor'):        
+        customer = customer_controller.get_all_customer_data(page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_customer, dropdown=dropdown)        
+    else:        
+        list_my_customer = user_controller.get_user_by_id(current_identity.id)['customer_id']
+        customer = customer_controller.get_all_customer_data_only_assigned(page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_my_customer, dropdown=dropdown)
+
+    
+    # customer = customer_controller.get_all_customer_data(
+    #     page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_customer,
+    #     dropdown=dropdown
+    # )
+    
+    # list_my_customer = user_controller.get_user_by_id(current_identity.id)['customer_id']
+    # list_json = json.loads(list_my_customer)
+    # customer = customer_controller.get_all_customer_data_only_assigned(
+    #     page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_my_customer,
+    #     dropdown=dropdown
+    # )
+
+    response['error'] = 0
+    response['data'] = customer
+    
+    return jsonify(response)
+
+@bp.route('/customer/export2', methods=["GET"])
+@jwt_required()
+def export_customers():
+    
+    customer_controller = CustomerController()
+    user_controller = UserController()
+
+    response = {
+        'error': 1,
+        'message': 'test export',
+        'data': []
+    }
+    
+    job_function = current_identity.job_function
+    # penamanaan dari front end, filename hanya dummy
+    filename = "customers"
+    page = 1
+    limit = 100000
+    search = None
+    column = None
+    direction = None
+    data_filter = None
+    result_data = {}
+    
+    if request.args.get('search'):
+        search = request.args.get('search')
+    if request.args.get('order_by_column'):
+        column = request.args.get('order_by_column')
+        direction = request.args.get('order_direction')
+    if request.args.get('page_filter'):
+        data_filter = request.args.get('page_filter')
+        data_filter = json.loads(data_filter)
+    
+    list_customer = []
+    if(job_function == 'supervisor'):
+        print("supervisor")
+    else:   
+        print("general") 
+        list_customer = user_controller.get_user_by_id(current_identity.id)['customer_id']
+
+    result = customer_controller.get_all_export_customers(
+        page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_customer
+    )    
+
+    response = make_response(send_file(result['file'], add_etags=False))
+    
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = 'attachment; filename={}'.format(filename)
+    response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
+
+    return response
+
+# custom end
 
 @bp.route('/customer/approval', methods=["GET"])
 @jwt_required()

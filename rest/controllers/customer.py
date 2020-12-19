@@ -16,6 +16,9 @@ from rest.helpers import mysql, date_range
 from rest.models import CustomerModel, UserModel, VisitPlanSummaryModel, SalesActivityModel, LogisticActivityModel, \
     EmployeeModel
 
+from io import BytesIO
+import xlsxwriter 
+
 # from rest.models import ContactModel
 
 __author__ = 'Junior'
@@ -411,6 +414,153 @@ class CustomerController(object):
         else:
             customer['has_prev'] = False
         return customer
+
+
+    # custom
+
+    def get_all_customer_data_only_assigned(
+            self, page: int, limit: int, search: str, column: str, direction: str, list_customer: list, dropdown: bool
+    ):       
+        customer = {}
+        data = []
+        where_user = ""
+        start = page * limit - limit
+        order = ''
+        join = ''
+
+        # override list_customer
+        
+        where = "WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 AND code IN ('{0}')".format(
+                "', '".join(x for x in list_customer)
+            )
+
+        if column:
+            order = """ORDER BY {0} {1}""".format(column, direction)
+        if search:
+            where += """AND (code LIKE '%{0}%' OR name LIKE '%{0}%' OR address LIKE '%{0}%' 
+            OR phone LIKE '%{0}%' OR email LIKE '%{0}%')""".format(search)
+        customer_data = self.customer_model.get_all_customer(self.cursor, where=where, order=order, join=join, start=start, limit=limit)
+        count_filter = self.customer_model.get_count_all_customer(self.cursor, where=where, join=join)
+        count = self.customer_model.get_count_all_customer(self.cursor)
+        if customer_data:
+            for emp in customer_data:
+                if emp['edit_data'] is not None:
+                    emp['edit_data'] = json.loads(emp['edit_data'])
+                if emp['contacts'] is not None:
+                    emp['contacts'] = json.loads(emp['contacts'])
+                if emp['business_activity'] is not None:
+                    emp['business_activity'] = json.loads(emp['business_activity'])
+                data.append(emp)
+        customer['data'] = data
+        customer['total'] = count
+        customer['total_filter'] = count_filter
+
+        # TODO: Check Has Next and Prev
+        if customer['total'] > page * limit:
+            customer['has_next'] = True
+        else:
+            customer['has_next'] = False
+        if limit <= page * count - count:
+            customer['has_prev'] = True
+        else:
+            customer['has_prev'] = False
+        return customer
+
+
+    def get_all_export_customers(
+            self, page: int, limit: int, search: str, column: str, direction: str, list_customer: list
+    ):
+        
+        customer = {}
+        result_data = {}
+        data = []
+        where_user = ""
+        start = page * limit - limit
+        order = ''
+        join = ''
+
+        # override list_customer
+        if(list_customer.__len__() >= 1):
+            where = "WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 AND code IN ('{0}')".format(
+                    "', '".join(x for x in list_customer)
+                )
+        else:
+            where = "WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 "
+
+        customer_data = self.customer_model.get_all_customer(self.cursor, where=where, order=order, join=join, start=start, limit=limit)        
+
+        if customer_data:        
+            for emp in customer_data:
+                if emp['edit_data'] is not None:
+                    emp['edit_data'] = json.loads(emp['edit_data'])
+                if emp['contacts'] is not None:
+                    emp['contacts'] = json.loads(emp['contacts'])
+                if emp['business_activity'] is not None:
+                    emp['business_activity'] = json.loads(emp['business_activity'])
+                data.append(emp)
+        else:
+            print("no customer data")                
+
+        customer['data'] = data
+                
+        output = BytesIO()
+
+        workbook = xlsxwriter.Workbook(output)
+        worksheet = workbook.add_worksheet('customers')
+        # custom export
+        header_format = workbook.add_format(
+            {
+                'bold': 1,
+                'border': 0,
+                'align': 'left',
+                'valign': 'vcenter'
+            }
+        )
+
+        worksheet.write('A1', 'Code', header_format)
+        worksheet.write('B1', 'Name', header_format)
+        worksheet.write('C1', 'Address', header_format)
+        worksheet.write('D1', 'Phone', header_format)                
+        worksheet.write('E1', 'Lat', header_format)
+        worksheet.write('F1', 'Lng', header_format)
+        worksheet.write('G1', 'Category', header_format)
+        worksheet.write('H1', 'Contact_name', header_format)
+        worksheet.write('I1', 'Contact_mobile', header_format)        
+        worksheet.write('J1', 'Contact_phone', header_format)
+        worksheet.write('K1', 'Contact_email', header_format)
+        worksheet.write('L1', 'Create_date', header_format)
+
+        data_rows = 1
+        for rec in customer['data']:
+            print("rec " , rec)
+            worksheet.write(data_rows, 0, rec['code'])
+            worksheet.write(data_rows, 1, rec['name'])
+            worksheet.write(data_rows, 2, rec['address'])
+            worksheet.write(data_rows, 3, rec['phone'])
+            worksheet.write(data_rows, 4, rec['lat'])
+            worksheet.write(data_rows, 5, rec['lng'])
+            worksheet.write(data_rows, 6, rec['category'])
+
+            if(rec['contacts'][0]['name']):
+                worksheet.write(data_rows, 7, rec['contacts'][0]['name'])
+                worksheet.write(data_rows, 8, rec['contacts'][0]['mobile'])
+                worksheet.write(data_rows, 9, rec['contacts'][0]['phone'])
+                worksheet.write(data_rows, 10, rec['contacts'][0]['email'])
+            
+            check_date = rec['create_date'] if rec['create_date'] != None else rec['update_date']
+            worksheet.write(data_rows, 11, datetime.strptime(str(check_date), "%Y-%m-%d %H:%M:%S").strftime("%Y-%d-%m"))
+
+            data_rows += 1
+            
+        workbook.close()
+        output.seek(0)
+
+        result_data['data'] = data
+        result_data['file'] = output
+
+        return result_data
+
+    # custom end
 
     def get_all_customer_parent(self, page: int, limit: int, search: str, column: str, direction: str):
         """
