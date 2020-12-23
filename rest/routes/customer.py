@@ -406,28 +406,9 @@ def get_all_customer():
     if request.args.get('order_by_column'):
         column = request.args.get('order_by_column')
         direction = request.args.get('order_direction')
-    if request.args.get('dropdown'):
-        if job_function == 'supervisor':
-            if is_supervisor_sales == 1 and is_supervisor_logistic == 0:
-                category = 'sales'
-            elif is_supervisor_sales == 0 and is_supervisor_logistic == 1:
-                category = 'logistic'
-            elif is_supervisor_sales == 1 and is_supervisor_logistic == 1:
-                category = 'all'
-            else:
-                raise BadRequest(
-                    "Can't view list customer, only with assign supervisor sales or logistic", 422, 1, data=[]
-                )
-        dropdown = True
-        # Limit for Search Dropdown Destination
-        limit = int(20)
-
-        list_customer = user_controller.get_customer_from_supervisor(
-            branch_privilege=branch_privilege, division_privilege=division_privilege, category=category
-        )
-    else:
-        list_customer = []
-        dropdown = False
+    
+    list_customer = []
+    dropdown = False
 
     customer = customer_controller.get_all_customer_data(
         page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_customer,
@@ -465,53 +446,40 @@ def get_all_customer_only_assigned():
     search = None
     column = None
     direction = None
+
+    isFilter = False
+    dataFilter = []
+    has_list = False
+    list_customer = []
+
+    # custom parameter
+    dataFilter = {}
+
+    if request.args.get('page_filter'):        
+        dataFilter = request.args.get('page_filter')
+        isFilter = True
+    
     if request.args.get('search'):
         search = request.args.get('search')
+    
     if request.args.get('order_by_column'):
         column = request.args.get('order_by_column')
         direction = request.args.get('order_direction')
-    if request.args.get('dropdown'):
-        if job_function == 'supervisor':
-            if is_supervisor_sales == 1 and is_supervisor_logistic == 0:
-                category = 'sales'
-            elif is_supervisor_sales == 0 and is_supervisor_logistic == 1:
-                category = 'logistic'
-            elif is_supervisor_sales == 1 and is_supervisor_logistic == 1:
-                category = 'all'
-            else:
-                raise BadRequest(
-                    "Can't view list customer, only with assign supervisor sales or logistic", 422, 1, data=[]
-                )
-        dropdown = True
-        # Limit for Search Dropdown Destination
-        limit = int(20)        
 
-        list_customer = user_controller.get_customer_from_supervisor(
-            branch_privilege=branch_privilege, division_privilege=division_privilege, category=category
-        )
-    else:
-        
-        list_customer = []
-        dropdown = False
+    if job_function != 'supervisor':
+        has_list = True
 
-    if(job_function == 'supervisor'):        
-        customer = customer_controller.get_all_customer_data(page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_customer, dropdown=dropdown)        
-    else:        
-        list_my_customer = user_controller.get_user_by_id(current_identity.id)['customer_id']
-        customer = customer_controller.get_all_customer_data_only_assigned(page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_my_customer, dropdown=dropdown)
-
+    if has_list:
+        list_customer = user_controller.get_user_by_id(current_identity.id)['customer_id']
     
-    # customer = customer_controller.get_all_customer_data(
-    #     page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_customer,
-    #     dropdown=dropdown
-    # )
-    
-    # list_my_customer = user_controller.get_user_by_id(current_identity.id)['customer_id']
-    # list_json = json.loads(list_my_customer)
-    # customer = customer_controller.get_all_customer_data_only_assigned(
-    #     page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_my_customer,
-    #     dropdown=dropdown
-    # )
+    if(job_function == 'supervisor'):
+        customer = customer_controller.get_all_customer_data_filtered(
+            page=page, limit=limit, search=search, column=column, direction=direction, has_list=has_list, list_customer=list_customer, isFilter=isFilter, dataFilter=dataFilter
+            )
+    else:                
+        customer = customer_controller.get_all_customer_data_filtered(
+            page=page, limit=limit, search=search, column=column, direction=direction,  has_list=has_list, list_customer=list_customer, isFilter=isFilter, dataFilter=dataFilter
+            )
 
     response['error'] = 0
     response['data'] = customer
@@ -521,7 +489,6 @@ def get_all_customer_only_assigned():
 @bp.route('/customer/export2', methods=["GET"])
 @jwt_required()
 def export_customers():
-    
     customer_controller = CustomerController()
     user_controller = UserController()
 
@@ -533,6 +500,7 @@ def export_customers():
     
     job_function = current_identity.job_function
     # penamanaan dari front end, filename hanya dummy
+
     filename = "customers"
     page = 1
     limit = 100000
@@ -552,15 +520,12 @@ def export_customers():
         data_filter = json.loads(data_filter)
     
     list_customer = []
-    if(job_function == 'supervisor'):
-        print("supervisor")
-    else:   
-        print("general") 
+    if(job_function != 'supervisor'):        
         list_customer = user_controller.get_user_by_id(current_identity.id)['customer_id']
 
     result = customer_controller.get_all_export_customers(
         page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_customer
-    )    
+    )
 
     response = make_response(send_file(result['file'], add_etags=False))
     
@@ -569,6 +534,27 @@ def export_customers():
     response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
 
     return response
+
+@bp.route('/customer/query', methods=["POST"])
+@jwt_required()
+def get_customer_particular():
+    customer_controller = CustomerController()
+    user_controller = UserController()
+
+    response = {
+        'error': 1,
+        'message': 'specific query',
+        'data': []
+    }
+    
+    request_data = None   
+    try:
+        request_data = request.get_json(silent=True)     
+        print("request_data ", request_data)   
+    except:
+        raise BadRequest("Params is missing or error format, check double quatation", 422, 1, data=[])
+
+    return jsonify(response)
 
 # custom end
 
@@ -778,9 +764,7 @@ def get_all_customer_report(job_function):
         'error': 1,
         'message': '',
         'data': []
-    }
-
-    print("current-job-function : ", job_function)
+    }    
 
     search = None
     data_filter = None

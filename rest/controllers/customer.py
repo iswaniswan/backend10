@@ -358,18 +358,6 @@ class CustomerController(object):
     def get_all_customer_data(
             self, page: int, limit: int, search: str, column: str, direction: str, list_customer: list, dropdown: bool
     ):
-        """
-        Get List Of cutomer
-        :param: page: int
-        :param: limit: int
-        :param: search: str
-        :param: column: str
-        :param: direction: str
-        :param: list_customer: list
-        :param: dropdown: bool
-        :return:
-            list customer Object
-        """
         customer = {}
         data = []
         where_user = ""
@@ -418,9 +406,73 @@ class CustomerController(object):
 
     # custom
 
+    def get_all_customer_data_filtered(
+            self, page: int, limit: int, search: str, column: str, direction: str, has_list: bool, list_customer: list, isFilter: bool, dataFilter: list
+    ):
+        customer = {}
+        data = []
+        where_user = ""
+        start = page * limit - limit
+        order = ''
+        join = ''
+        
+        if has_list:
+            where = "WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 AND code IN ('{0}')".format(
+                "', '".join(x for x in list_customer)
+            )
+        else:
+            where = "WHERE is_deleted = 0 AND is_approval = 1 "
+
+        if isFilter:
+            dataFilter = json.loads(dataFilter)
+            if(dataFilter[0]['name'].__len__() > 1):
+                where += """ AND name IN ('{0}') """.format("', '".join(x for x in dataFilter[0]['name']))
+                print("dataFilter1", where)
+
+            elif(dataFilter[0]['name'] != ''):
+                where += """ AND name IN ('{0}') """.format(str(dataFilter[0]['name'][0]))
+                print("dataFilter2", where)
+
+        if column:
+            order = """ORDER BY {0} {1}""".format(column, direction)
+
+        if search:
+            where += """AND (code LIKE '%{0}%' OR name LIKE '%{0}%' OR address LIKE '%{0}%' 
+            OR phone LIKE '%{0}%' OR email LIKE '%{0}%')""".format(search)
+
+        customer_data = self.customer_model.get_all_customer(self.cursor, where=where, order=order, join=join,
+                                                             start=start, limit=limit)
+        count_filter = self.customer_model.get_count_all_customer(self.cursor, where=where, join=join)
+        count = self.customer_model.get_count_all_customer(self.cursor)
+        if customer_data:
+            for emp in customer_data:
+                if emp['edit_data'] is not None:
+                    emp['edit_data'] = json.loads(emp['edit_data'])
+                if emp['contacts'] is not None:
+                    emp['contacts'] = json.loads(emp['contacts'])
+                if emp['business_activity'] is not None:
+                    emp['business_activity'] = json.loads(emp['business_activity'])
+                data.append(emp)
+        customer['data'] = data
+        customer['total'] = count
+        customer['total_filter'] = count_filter
+
+        # TODO: Check Has Next and Prev
+        if customer['total'] > page * limit:
+            customer['has_next'] = True
+        else:
+            customer['has_next'] = False
+        if limit <= page * count - count:
+            customer['has_prev'] = True
+        else:
+            customer['has_prev'] = False
+        return customer
+
+
     def get_all_customer_data_only_assigned(
-            self, page: int, limit: int, search: str, column: str, direction: str, list_customer: list, dropdown: bool
-    ):       
+        
+            self, page: int, limit: int, search: str, column: str, direction: str, list_customer: list, dropdown: bool, isFilter: bool, dataFilter: list
+    ):
         customer = {}
         data = []
         where_user = ""
@@ -439,6 +491,18 @@ class CustomerController(object):
         if search:
             where += """AND (code LIKE '%{0}%' OR name LIKE '%{0}%' OR address LIKE '%{0}%' 
             OR phone LIKE '%{0}%' OR email LIKE '%{0}%')""".format(search)
+
+        if isFilter:
+            if(dataFilter['code'] is not ''):
+                query = json.loads(dataFilter['code'])
+                if(query.__len__() > 1):
+                    where += """ AND (code = '{0}') """.format(
+                    "' or code = '".join(x for x in json.loads(dataFilter['code'])))
+                else:
+                    where += """ AND code = '{0}' """.format(str(query[0]))
+
+
+
         customer_data = self.customer_model.get_all_customer(self.cursor, where=where, order=order, join=join, start=start, limit=limit)
         count_filter = self.customer_model.get_count_all_customer(self.cursor, where=where, join=join)
         count = self.customer_model.get_count_all_customer(self.cursor)
@@ -559,6 +623,9 @@ class CustomerController(object):
         result_data['file'] = output
 
         return result_data
+
+    # def get_particular_field(self, field: str):
+    #     where = 
 
     # custom end
 
