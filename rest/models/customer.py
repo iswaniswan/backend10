@@ -78,8 +78,15 @@ class CustomerModel(Model):
 
     def get_my_customer_only_assigned(self, cursor, start=0, limit=50, select='*', join='', where='', order=''):
         try:
-            return self.get(cursor, fields=select, join=join, where=where, order=order,
-                            limit="LIMIT {}, {}".format(start, limit))            
+            result = self.get(cursor, fields=select, join=join, where=where, order=order,
+                            limit="LIMIT {}, {}".format(start, limit))  
+            return result                            
+        except Exception as e:
+            raise e
+
+    def get_particular_field(self, cursor, select='*', where=''):
+        try:
+            return self.get(cursor, fields=select, where=where)
         except Exception as e:
             raise e
 

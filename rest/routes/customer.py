@@ -494,7 +494,7 @@ def export_customers():
 
     response = {
         'error': 1,
-        'message': 'test export',
+        'message': 'export error',
         'data': []
     }
     
@@ -524,7 +524,7 @@ def export_customers():
         list_customer = user_controller.get_user_by_id(current_identity.id)['customer_id']
 
     result = customer_controller.get_all_export_customers(
-        page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_customer
+        page=page, limit=limit, search=search, column=column, direction=direction, list_customer=list_customer, dataFilter=data_filter
     )
 
     response = make_response(send_file(result['file'], add_etags=False))
@@ -538,8 +538,10 @@ def export_customers():
 @bp.route('/customer/query', methods=["POST"])
 @jwt_required()
 def get_customer_particular():
+    job_function = current_identity.job_function
     customer_controller = CustomerController()
     user_controller = UserController()
+    has_list = False
 
     response = {
         'error': 1,
@@ -547,10 +549,24 @@ def get_customer_particular():
         'data': []
     }
     
-    request_data = None   
+    request_data = None
+    
     try:
-        request_data = request.get_json(silent=True)     
-        print("request_data ", request_data)   
+        request_data = request.get_json(silent=True)   
+
+        if job_function != 'supervisor':
+            has_list = True
+
+        list_customer = []
+
+        if has_list:
+            list_customer = user_controller.get_user_by_id(current_identity.id)['customer_id']
+
+        list_parent = customer_controller.get_particular_field(request_data, list_customer)
+
+        response['error'] = 0
+        response['data'] = list_parent
+        response['message'] = "success"
     except:
         raise BadRequest("Params is missing or error format, check double quatation", 422, 1, data=[])
 
@@ -639,26 +655,6 @@ def get_all_customer_approval():
 @bp.route('/customer/parent', methods=["GET"])
 @jwt_required()
 def get_all_customer_parent():
-    """
-    Get List all customer
-    :example:
-        curl -i -x GET
-        -H "Authorization:JWT <token>"
-        "http://localhost:7091/customer/parent"
-    :return:
-        HTTP/1.1 200 OK
-        Content-Type: text/javascript
-        {
-            "error": 0,
-            "message": ""
-            "data": {
-                "has_next":<boolean>,
-                "has_prev":<boolean>,
-                "total":<int>,
-                "data":<list object>
-            }
-        }
-    """
     customer_controller = CustomerController()
     response = {
         'error': 1,
@@ -682,27 +678,7 @@ def get_all_customer_parent():
 
 @bp.route('/customer/check/nearby', methods=["GET"])
 @jwt_required()
-def get_all_customer_nearby():
-    """
-    Get List all customer
-    :example:
-        curl -i -x GET
-        -H "Authorization:JWT <token>"
-        "http://localhost:7091/customer"
-    :return:
-        HTTP/1.1 200 OK
-        Content-Type: text/javascript
-        {
-            "error": 0,
-            "message": ""
-            "data": {
-                "has_next":<boolean>,
-                "has_prev":<boolean>,
-                "total":<int>,
-                "data":<list object>
-            }
-        }
-    """
+def get_all_customer_nearby():    
     customer_controller = CustomerController()
     user_controller = UserController()
     user_id = current_identity.id

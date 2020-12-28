@@ -425,13 +425,21 @@ class CustomerController(object):
 
         if isFilter:
             dataFilter = json.loads(dataFilter)
-            if(dataFilter[0]['name'].__len__() > 1):
-                where += """ AND name IN ('{0}') """.format("', '".join(x for x in dataFilter[0]['name']))
-                print("dataFilter1", where)
+            if(dataFilter[0]['category']):
 
-            elif(dataFilter[0]['name'] != ''):
-                where += """ AND name IN ('{0}') """.format(str(dataFilter[0]['name'][0]))
-                print("dataFilter2", where)
+                if(dataFilter[0]['category'].__len__() > 1):
+                    where += """ AND category IN ('{0}') """.format("', '".join(x for x in dataFilter[0]['category']))
+                
+                else: 
+                    where += """ AND category IN ('{0}') """.format(str(dataFilter[0]['category'][0]))
+                
+            if(dataFilter[0]['parent_code']):
+
+                if(dataFilter[0]['parent_code'].__len__() > 1):
+                    where += """ AND parent_code IN ('{0}') """.format("', '".join(x for x in dataFilter[0]['parent_code']))
+
+                else:
+                    where += """ AND parent_code IN ('{0}') """.format(str(dataFilter[0]['parent_code'][0]))
 
         if column:
             order = """ORDER BY {0} {1}""".format(column, direction)
@@ -532,7 +540,7 @@ class CustomerController(object):
 
 
     def get_all_export_customers(
-            self, page: int, limit: int, search: str, column: str, direction: str, list_customer: list
+            self, page: int, limit: int, search: str, column: str, direction: str, list_customer: list, dataFilter: list
     ):
         
         customer = {}
@@ -550,8 +558,32 @@ class CustomerController(object):
                 )
         else:
             where = "WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 "
+        
+        if(dataFilter[0]['category']):
 
-        customer_data = self.customer_model.get_all_customer(self.cursor, where=where, order=order, join=join, start=start, limit=limit)        
+            if(dataFilter[0]['category'].__len__() > 1):
+                where += """ AND category IN ('{0}') """.format("', '".join(x for x in dataFilter[0]['category']))
+            
+            else: 
+                where += """ AND category IN ('{0}') """.format(str(dataFilter[0]['category'][0]))
+            
+        if(dataFilter[0]['parent_code']):
+
+            if(dataFilter[0]['parent_code'].__len__() > 1):
+                where += """ AND parent_code IN ('{0}') """.format("', '".join(x for x in dataFilter[0]['parent_code']))
+
+            else:
+                where += """ AND parent_code IN ('{0}') """.format(str(dataFilter[0]['parent_code'][0]))
+
+        if column:
+            order = """ORDER BY {0} {1}""".format(column, direction)
+
+        if search:
+            where += """AND (code LIKE '%{0}%' OR name LIKE '%{0}%' OR address LIKE '%{0}%' 
+            OR phone LIKE '%{0}%' OR email LIKE '%{0}%')""".format(search)
+
+        customer_data = self.customer_model.get_all_customer(self.cursor, where=where, order=order, join=join,
+                                                             start=start, limit=limit)     
 
         if customer_data:        
             for emp in customer_data:
@@ -593,6 +625,7 @@ class CustomerController(object):
         worksheet.write('J1', 'Contact_phone', header_format)
         worksheet.write('K1', 'Contact_email', header_format)
         worksheet.write('L1', 'Create_date', header_format)
+        worksheet.write('M1', 'Parent_code', header_format)
 
         data_rows = 1
         for rec in customer['data']:
@@ -613,6 +646,7 @@ class CustomerController(object):
             
             check_date = rec['create_date'] if rec['create_date'] != None else rec['update_date']
             worksheet.write(data_rows, 11, datetime.strptime(str(check_date), "%Y-%m-%d %H:%M:%S").strftime("%Y-%d-%m"))
+            worksheet.write(data_rows, 12, rec['parent_code'])
 
             data_rows += 1
             
@@ -624,22 +658,43 @@ class CustomerController(object):
 
         return result_data
 
-    # def get_particular_field(self, field: str):
-    #     where = 
+    def get_particular_field(self, field: dict, list_customer: list):
+        
+        where = """WHERE is_deleted = 0 """
+
+        if list_customer:
+
+            if list_customer.__len__() >= 1:
+                where += " AND is_approval = 1 AND code IN ('{0}')".format(
+                    "', '".join(x for x in list_customer)
+                )
+            else:
+                where += " AND is_approval = 1 AND code IN ('{0}')".format(list_customer[0])
+
+
+        if field.get('field') == "parent_code":
+            
+            where += """ AND parent_code is not null GROUP BY parent_code"""
+            
+            result = self.customer_model.get_particular_field(
+                 self.cursor, select='parent_code', where=where
+            )
+
+            if result:                    
+                list_parent = []
+                for row in result:
+                    list_parent.append(row['parent_code'])
+
+                result = {
+                    "parent_code": list_parent
+                }
+
+                
+            return result
 
     # custom end
 
     def get_all_customer_parent(self, page: int, limit: int, search: str, column: str, direction: str):
-        """
-        Get List Of cutomer
-        :param: page: int
-        :param: limit: int
-        :param: search: str
-        :param: column: str
-        :param: direction: str
-        :return:
-            list division Object
-        """
         customer = {}
         data = []
         start = page * limit - limit
@@ -664,19 +719,6 @@ class CustomerController(object):
     def get_all_customer_nearby_data(
             self, page: int, limit: int, search: str, distance: int, lng: str, lat: str, list_customer: list
     ):
-        """
-        Get List Of cutomer
-        :param: page: int
-        :param: limit: int
-        :param: search: str
-        :param: column: str
-        :param: direction: str
-        :param: lng: str
-        :param: lat: str
-        :param: list_customer: list
-        :return:
-            list customer Object
-        """
         customer = {}
         data = []
         where_user = ""
