@@ -486,7 +486,7 @@ def get_all_customer_only_assigned():
     
     return jsonify(response)
 
-@bp.route('/customer/export2', methods=["GET"])
+@bp.route('/customer/export3', methods=["GET"])
 @jwt_required()
 def export_customers():
     customer_controller = CustomerController()
@@ -550,7 +550,7 @@ def get_customer_particular():
     }
     
     request_data = None
-    
+
     try:
         request_data = request.get_json(silent=True)   
 

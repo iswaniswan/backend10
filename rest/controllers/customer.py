@@ -441,6 +441,12 @@ class CustomerController(object):
                 else:
                     where += """ AND parent_code IN ('{0}') """.format(str(dataFilter[0]['parent_code'][0]))
 
+
+            if(dataFilter[0]['start_date']) and dataFilter[0]['end_date']:
+                start_date = dataFilter[0]['start_date'] + " 00:00:00"
+                end_date = dataFilter[0]['end_date'] + " 23:59:59"
+                where += " AND (create_date >= '{0}' AND create_date <= '{1}') ".format(start_date, end_date)
+
         if column:
             order = """ORDER BY {0} {1}""".format(column, direction)
 
@@ -510,7 +516,6 @@ class CustomerController(object):
                     where += """ AND code = '{0}' """.format(str(query[0]))
 
 
-
         customer_data = self.customer_model.get_all_customer(self.cursor, where=where, order=order, join=join, start=start, limit=limit)
         count_filter = self.customer_model.get_count_all_customer(self.cursor, where=where, join=join)
         count = self.customer_model.get_count_all_customer(self.cursor)
@@ -552,28 +557,30 @@ class CustomerController(object):
         join = ''
 
         # override list_customer
+
         if(list_customer.__len__() >= 1):
             where = "WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 AND code IN ('{0}')".format(
                     "', '".join(x for x in list_customer)
                 )
         else:
             where = "WHERE is_deleted = 0 AND is_approval = 1 AND `is_deleted` = 0 "
-        
-        if(dataFilter[0]['category']):
 
+        if(dataFilter[0]['category']):
             if(dataFilter[0]['category'].__len__() > 1):
                 where += """ AND category IN ('{0}') """.format("', '".join(x for x in dataFilter[0]['category']))
-            
             else: 
                 where += """ AND category IN ('{0}') """.format(str(dataFilter[0]['category'][0]))
-            
+                
         if(dataFilter[0]['parent_code']):
-
             if(dataFilter[0]['parent_code'].__len__() > 1):
                 where += """ AND parent_code IN ('{0}') """.format("', '".join(x for x in dataFilter[0]['parent_code']))
-
             else:
                 where += """ AND parent_code IN ('{0}') """.format(str(dataFilter[0]['parent_code'][0]))
+        
+        if(dataFilter[0]['start_date']) and dataFilter[0]['end_date']:
+            start_date = dataFilter[0]['start_date'] + " 00:00:00"
+            end_date = dataFilter[0]['end_date'] + " 23:59:59"        
+            where += " AND (create_date >= '{0}' AND create_date <= '{1}') ".format(start_date, end_date)
 
         if column:
             order = """ORDER BY {0} {1}""".format(column, direction)
@@ -645,7 +652,7 @@ class CustomerController(object):
                 worksheet.write(data_rows, 10, rec['contacts'][0]['email'])
             
             check_date = rec['create_date'] if rec['create_date'] != None else rec['update_date']
-            worksheet.write(data_rows, 11, datetime.strptime(str(check_date), "%Y-%m-%d %H:%M:%S").strftime("%Y-%d-%m"))
+            worksheet.write(data_rows, 11, datetime.strptime(str(check_date), "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d"))
             worksheet.write(data_rows, 12, rec['parent_code'])
 
             data_rows += 1
@@ -670,7 +677,6 @@ class CustomerController(object):
                 )
             else:
                 where += " AND is_approval = 1 AND code IN ('{0}')".format(list_customer[0])
-
 
         if field.get('field') == "parent_code":
             
